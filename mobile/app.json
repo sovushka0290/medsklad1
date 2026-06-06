@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "MedSklad",
+    "slug": "medsklad",
+    "version": "1.0.0",
+    "scheme": "medsklad",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MedSklad to access your camera for scanning barcodes."
+        }
+      ]
+    ]
+  }
+}

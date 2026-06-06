@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  STOREKEEPER
+  NURSE
+}
+
+enum LocationType {
+  MAIN_STORAGE
+  CABINET
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      Role     @default(NURSE)
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Location {
+  id          Int          @id @default(autoincrement())
+  name        String
+  type        LocationType @default(CABINET)
+  description String?
+  batches     Batch[]
+  transactions Transaction[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Medication {
+  id          Int      @id @default(autoincrement())
+  barcode     String   @unique
+  name        String
+  minQuantity Int      @default(10)
+  batches     Batch[]
+  transactions Transaction[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Batch {
+  id           Int        @id @default(autoincrement())
+  quantity     Int        @default(0)
+  medicationId Int
+  medication   Medication @relation(fields: [medicationId], references: [id])
+  locationId   Int
+  location     Location   @relation(fields: [locationId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+enum TransactionType {
+  INCOME
+  OUTFLOW
+}
+
+model Transaction {
+  id           Int             @id @default(autoincrement())
+  type         TransactionType
+  quantity     Int
+  medicationId Int
+  medication   Medication      @relation(fields: [medicationId], references: [id])
+  locationId   Int
+  location     Location        @relation(fields: [locationId], references: [id])
+  createdAt    DateTime        @default(now())
+}
