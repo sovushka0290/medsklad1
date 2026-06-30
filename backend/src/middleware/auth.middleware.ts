@@ -1,45 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+import { config } from '../config';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
-  const apiKey = req.headers['x-api-key'];
-  const expectedApiKey = process.env.API_KEY || 'MedSkladSecretKey123';
+  const apiKey = req.headers['x-api-key'] as string | undefined;
 
-  // 1. Проверка API Key (Для внешних систем или дев-скриптов)
-  if (apiKey && apiKey === expectedApiKey) {
-    // В MVP можно замокать юзера при использовании API ключа
-    const user = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+  // 1. Проверка API Key (только если задан в .env)
+  if (apiKey && config.apiKey && apiKey === config.apiKey) {
+    const user = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+      orderBy: { id: 'asc' },
+    });
     if (user) {
-      (req as any).user = user;
+      req.user = user;
     }
     return next();
   }
 
-  // 2. Проверка JWT токена (Для мобильного приложения и веба)
+  // 2. Проверка JWT токена
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
-      error: 'Доступ запрещен: отсутствует JWT токен или API-ключ',
+      success: false,
+      error: 'Доступ запрещен: отсутствует токен авторизации',
     });
   }
 
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, config.jwtSecret) as { id: number; email: string; role: string; name: string };
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
-    
+
     if (!user) {
-      return res.status(401).json({ error: 'Пользователь не найден' });
+      return res.status(401).json({ success: false, error: 'Пользователь не найден' });
     }
 
-    (req as any).user = user;
+    req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Недействительный токен' });
+    return res.status(401).json({ success: false, error: 'Недействительный или истёкший токен' });
   }
 };

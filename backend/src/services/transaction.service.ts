@@ -1,33 +1,32 @@
-import { PrismaClient, TransactionType } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
+import { TransactionType } from '@prisma/client';
 
 export interface CreateTransactionInput {
   type: TransactionType;
   quantity: number;
   medicationId: number;
   locationId: number;
+  userId?: number;
+  reason?: string;
 }
 
 export const transactionService = {
   async createTransaction(input: CreateTransactionInput) {
-    const { type, quantity, medicationId, locationId } = input;
+    const { type, quantity, medicationId, locationId, userId, reason } = input;
 
     if (quantity <= 0) {
       throw new Error('Количество должно быть больше нуля');
     }
 
-    // Проверяем существование медикамента и локации
-    const medication = await prisma.medication.findUnique({
-      where: { id: medicationId },
-    });
+    // Проверяем существование медикамента и локации параллельно
+    const [medication, location] = await Promise.all([
+      prisma.medication.findUnique({ where: { id: medicationId } }),
+      prisma.location.findUnique({ where: { id: locationId } }),
+    ]);
+
     if (!medication) {
       throw new Error('Медикамент не найден');
     }
-
-    const location = await prisma.location.findUnique({
-      where: { id: locationId },
-    });
     if (!location) {
       throw new Error('Локация не найдена');
     }
@@ -41,27 +40,21 @@ export const transactionService = {
 
       if (type === TransactionType.INCOME) {
         if (batch) {
-          // Обновляем существующую партию
           await tx.batch.update({
             where: { id: batch.id },
             data: { quantity: batch.quantity + quantity },
           });
         } else {
-          // Создаем новую партию
           await tx.batch.create({
-            data: {
-              medicationId,
-              locationId,
-              quantity,
-            },
+            data: { medicationId, locationId, quantity },
           });
         }
       } else if (type === TransactionType.OUTFLOW) {
         if (!batch || batch.quantity < quantity) {
-          throw new Error(`Недостаточно товара на складе (в наличии: ${batch ? batch.quantity : 0})`);
+          throw new Error(
+            `Недостаточно товара на складе (в наличии: ${batch ? batch.quantity : 0})`
+          );
         }
-
-        // Обновляем партию, вычитая количество
         await tx.batch.update({
           where: { id: batch.id },
           data: { quantity: batch.quantity - quantity },
@@ -70,29 +63,42 @@ export const transactionService = {
         throw new Error('Неизвестный тип транзакции');
       }
 
-      // Создаем запись транзакции в аудите
+      // Создаем запись транзакции
       return tx.transaction.create({
-        data: {
-          type,
-          quantity,
-          medicationId,
-          locationId,
-        },
+        data: { type, quantity, medicationId, locationId, userId, reason },
         include: {
-          medication: true,
-          location: true,
+          medication: { select: { id: true, name: true, barcode: true } },
+          location: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, role: true } }, // Без password!
         },
       });
     });
   },
 
-  async getTransactionHistory() {
-    return prisma.transaction.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        medication: true,
-        location: true,
-      },
-    });
+  async getTransactionHistory(page = 1, limit = 50) {
+    const take = Math.min(limit, 100); // Максимум 100 за запрос
+    const skip = (page - 1) * take;
+
+    const [data, total] = await Promise.all([
+      prisma.transaction.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          medication: { select: { id: true, name: true, barcode: true } },
+          location: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, role: true } }, // Без password!
+        },
+        skip,
+        take,
+      }),
+      prisma.transaction.count(),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      limit: take,
+      totalPages: Math.ceil(total / take),
+    };
   },
 };

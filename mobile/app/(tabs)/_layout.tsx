@@ -1,8 +1,17 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { Platform, Text } from 'react-native';
+import { useAuth } from '../../src/context/AuthContext';
 
 export default function TabLayout() {
+  const { user } = useAuth();
+  
+  if (!user) {
+    return <Redirect href="/login" />;
+  }
+
+  const role = user.role;
+
   return (
     <Tabs
       screenOptions={{
@@ -29,9 +38,11 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Склад (STOREKEEPER, HEAD_NURSE) */}
       <Tabs.Screen
         name="index"
         options={{
+          href: (role === 'STOREKEEPER' || role === 'HEAD_NURSE') ? '/' : null,
           title: 'Склад',
           headerTitle: 'Склад Медикаментов',
           tabBarIcon: ({ color }) => (
@@ -39,9 +50,12 @@ export default function TabLayout() {
           ),
         }}
       />
+      
+      {/* Дефицит (STOREKEEPER, HEAD_NURSE) */}
       <Tabs.Screen
         name="critical"
         options={{
+          href: (role === 'STOREKEEPER' || role === 'HEAD_NURSE') ? '/critical' : null,
           title: 'Дефицит',
           headerTitle: 'Критические остатки',
           tabBarIcon: ({ color }) => (
@@ -49,13 +63,42 @@ export default function TabLayout() {
           ),
         }}
       />
+      
+      {/* Сканер/Операции (STOREKEEPER) */}
       <Tabs.Screen
         name="scanner"
         options={{
+          href: role === 'STOREKEEPER' ? '/scanner' : null,
           title: 'Сканер',
           headerTitle: 'Операции со складом',
           tabBarIcon: ({ color }) => (
             <Text style={{ color, fontSize: 20 }}>📷</Text>
+          ),
+        }}
+      />
+
+      {/* Мой расход (NURSE) */}
+      <Tabs.Screen
+        name="nurse_dashboard"
+        options={{
+          href: role === 'NURSE' ? '/nurse_dashboard' : null,
+          title: 'Расход',
+          headerTitle: 'Мой расход',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ color, fontSize: 20 }}>💉</Text>
+          ),
+        }}
+      />
+
+      {/* Аналитика (HEAD_NURSE) */}
+      <Tabs.Screen
+        name="head_nurse_stats"
+        options={{
+          href: role === 'HEAD_NURSE' ? '/head_nurse_stats' : null,
+          title: 'Аналитика',
+          headerTitle: 'Статистика по кабинетам',
+          tabBarIcon: ({ color }) => (
+            <Text style={{ color, fontSize: 20 }}>📊</Text>
           ),
         }}
       />

@@ -1,54 +1,102 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
+export const createProcedure = async (data: {
+  name: string;
+  description?: string;
+  norms: { medicationId: number; expectedQuantity: number; tolerancePercent: number }[];
+}) => {
+  if (!data.name || data.name.trim().length === 0) {
+    throw new Error('Название процедуры обязательно');
+  }
+  if (!data.norms || data.norms.length === 0) {
+    throw new Error('Необходимо указать хотя бы один норматив');
+  }
 
-export const createProcedure = async (data: { name: string, description?: string, norms: { medicationId: number, expectedQuantity: number, tolerancePercent: number }[] }) => {
+  // Валидация нормативов
+  for (const norm of data.norms) {
+    if (!norm.medicationId || norm.medicationId <= 0) {
+      throw new Error('Некорректный ID медикамента в нормативе');
+    }
+    if (!norm.expectedQuantity || norm.expectedQuantity <= 0) {
+      throw new Error('Ожидаемое количество должно быть положительным');
+    }
+    if (norm.tolerancePercent < 0 || norm.tolerancePercent > 100) {
+      throw new Error('Допустимое отклонение должно быть от 0 до 100%');
+    }
+  }
+
   return prisma.procedure.create({
     data: {
-      name: data.name,
-      description: data.description,
+      name: data.name.trim(),
+      description: data.description?.trim(),
       norms: {
-        create: data.norms.map(norm => ({
+        create: data.norms.map((norm) => ({
           medicationId: norm.medicationId,
           expectedQuantity: norm.expectedQuantity,
-          tolerancePercent: norm.tolerancePercent
-        }))
-      }
+          tolerancePercent: norm.tolerancePercent,
+        })),
+      },
     },
-    include: { norms: true }
+    include: { norms: { include: { medication: { select: { id: true, name: true } } } } },
   });
 };
 
-export const logProcedure = async (data: { procedureId: number, locationId: number, userId: number }) => {
+export const logProcedure = async (data: {
+  procedureId: number;
+  locationId: number;
+  userId: number;
+}) => {
+  if (!data.procedureId || data.procedureId <= 0) {
+    throw new Error('Некорректный ID процедуры');
+  }
+  if (!data.locationId || data.locationId <= 0) {
+    throw new Error('Некорректный ID локации');
+  }
+
+  // Проверяем что процедура существует
+  const procedure = await prisma.procedure.findUnique({ where: { id: data.procedureId } });
+  if (!procedure) {
+    throw new Error('Процедура не найдена');
+  }
+
   return prisma.procedureLog.create({
     data: {
       procedureId: data.procedureId,
       locationId: data.locationId,
-      userId: data.userId
-    }
+      userId: data.userId,
+    },
+    include: {
+      procedure: { select: { id: true, name: true } },
+      location: { select: { id: true, name: true } },
+      user: { select: { id: true, name: true, role: true } },
+    },
   });
 };
 
 export const getProcedureComparison = async () => {
-  // Агрегируем данные по процедурам
   const procedures = await prisma.procedure.findMany({
-    include: { norms: { include: { medication: true } }, logs: true }
+    include: {
+      norms: {
+        include: { medication: { select: { id: true, name: true } } },
+      },
+      logs: true,
+    },
   });
 
-  const comparison = procedures.map(proc => {
+  return procedures.map((proc) => {
     const logsCount = proc.logs.length;
-    const expected = proc.norms.map(norm => {
+    const expected = proc.norms.map((norm) => {
       const expectedTotal = norm.expectedQuantity * logsCount;
       const minAllowed = expectedTotal * (1 - norm.tolerancePercent / 100);
       const maxAllowed = expectedTotal * (1 + norm.tolerancePercent / 100);
-      
+
       return {
         medicationId: norm.medicationId,
         medicationName: norm.medication.name,
-        expectedTotal,
-        minAllowed,
-        maxAllowed,
-        tolerancePercent: norm.tolerancePercent
+        expectedTotal: Math.round(expectedTotal * 100) / 100,
+        minAllowed: Math.round(minAllowed * 100) / 100,
+        maxAllowed: Math.round(maxAllowed * 100) / 100,
+        tolerancePercent: norm.tolerancePercent,
       };
     });
 
@@ -56,9 +104,7 @@ export const getProcedureComparison = async () => {
       procedureId: proc.id,
       procedureName: proc.name,
       timesPerformed: logsCount,
-      expectedUsage: expected
+      expectedUsage: expected,
     };
   });
-
-  return comparison;
 };

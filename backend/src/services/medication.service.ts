@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 export const medicationService = {
   async getAllMedications(barcode?: string, page?: number, limit?: number) {
@@ -11,48 +9,51 @@ export const medicationService = {
       });
     }
 
-    if (page !== undefined && limit !== undefined) {
-      const skip = (page - 1) * limit;
-      return prisma.medication.findMany({
+    const take = limit || 50;
+    const skip = page ? (page - 1) * take : 0;
+
+    const [data, total] = await Promise.all([
+      prisma.medication.findMany({
         skip,
-        take: limit,
+        take,
         include: {
           batches: { include: { location: true } },
         },
         orderBy: { name: 'asc' },
-      });
-    }
+      }),
+      prisma.medication.count(),
+    ]);
 
-    return prisma.medication.findMany({
-      include: {
-        batches: { include: { location: true } },
-      },
-      orderBy: { name: 'asc' },
-    });
+    return { data, total, page: page || 1, limit: take, totalPages: Math.ceil(total / take) };
   },
 
   async getInventorySummary() {
-    // Получаем сводную таблицу остатков.
-    // Делаем join с локациями (чтобы получить имена) и с медикаментами
+    // Оптимизация: агрегация вместо загрузки всех записей
     return prisma.batch.findMany({
+      where: { quantity: { gt: 0 } }, // Только ненулевые остатки
       include: {
-        location: true,
-        medication: true,
+        location: { select: { id: true, name: true, type: true } },
+        medication: { select: { id: true, name: true, barcode: true, minQuantity: true } },
       },
+      orderBy: { medication: { name: 'asc' } },
     });
   },
 
   async searchMedications(query: string) {
+    if (query.length < 2) return [];
+
     return prisma.medication.findMany({
       where: {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { barcode: { contains: query, mode: 'insensitive' } },
+          { mnn: { contains: query, mode: 'insensitive' } },
         ],
       },
       include: {
         batches: { include: { location: true } },
       },
+      take: 20, // Ограничение количества результатов
     });
   },
 
@@ -64,19 +65,27 @@ export const medicationService = {
   },
 
   async getLocations() {
-    return prisma.location.findMany();
+    return prisma.location.findMany({
+      orderBy: { name: 'asc' },
+    });
   },
 
   async getCriticalMedications() {
+    // Оптимизация: загружаем только необходимые поля
     const medications = await prisma.medication.findMany({
       include: {
-        batches: { include: { location: true } },
+        batches: {
+          select: { quantity: true, locationId: true },
+        },
       },
     });
 
-    return medications.filter(med => {
+    return medications.filter((med) => {
       const totalStock = med.batches.reduce((sum, b) => sum + b.quantity, 0);
       return totalStock < med.minQuantity;
-    });
+    }).map((med) => ({
+      ...med,
+      totalStock: med.batches.reduce((sum, b) => sum + b.quantity, 0),
+    }));
   },
 };

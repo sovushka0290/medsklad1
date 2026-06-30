@@ -1,74 +1,82 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { medicationService } from '../services/medication.service';
 
 export const medicationController = {
-  async getMedications(req: Request, res: Response) {
+  async getMedications(req: Request, res: Response, next: NextFunction) {
     try {
       const barcode = req.query.barcode as string | undefined;
-      const page = req.query.page ? parseInt(req.query.page as string) : undefined;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : undefined;
+
+      // Валидация page/limit
+      if (page !== undefined && (!Number.isInteger(page) || page < 1)) {
+        return res.status(400).json({ success: false, error: 'Параметр page должен быть целым положительным числом' });
+      }
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
+        return res.status(400).json({ success: false, error: 'Параметр limit должен быть от 1 до 100' });
+      }
 
       const medications = await medicationService.getAllMedications(barcode, page, limit);
-      res.json(medications);
+      res.json({ success: true, data: medications });
     } catch (error) {
-      console.error('Error fetching medications:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      next(error);
     }
   },
 
-  async getInventory(req: Request, res: Response) {
+  async getInventory(req: Request, res: Response, next: NextFunction) {
     try {
       const inventory = await medicationService.getInventorySummary();
-      res.json(inventory);
+      res.json({ success: true, data: inventory });
     } catch (error) {
-      console.error('Error fetching inventory:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      next(error);
     }
   },
 
-  async searchMedications(req: Request, res: Response) {
+  async searchMedications(req: Request, res: Response, next: NextFunction) {
     try {
       const q = (req.query.q as string) || '';
-      const medications = await medicationService.searchMedications(q);
-      res.json(medications);
-    } catch (error) {
-      console.error('Error searching medications:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
-
-  async updateMedication(req: Request, res: Response) {
-    try {
-      const id = parseInt(req.params.id);
-      const { barcode } = req.body;
-      if (!barcode) {
-        return res.status(400).json({ error: 'Barcode is required' });
+      if (q.length < 2) {
+        return res.json({ success: true, data: [] });
       }
-      const updated = await medicationService.updateMedicationBarcode(id, barcode);
-      res.json(updated);
+      const medications = await medicationService.searchMedications(q);
+      res.json({ success: true, data: medications });
     } catch (error) {
-      console.error('Error updating medication barcode:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      next(error);
     }
   },
 
-  async getLocations(req: Request, res: Response) {
+  async updateMedication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = Number(req.params.id);
+      if (!id || !Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ success: false, error: 'Некорректный ID медикамента' });
+      }
+      const { barcode } = req.body;
+      if (!barcode || typeof barcode !== 'string' || barcode.trim().length === 0) {
+        return res.status(400).json({ success: false, error: 'Штрихкод обязателен для заполнения' });
+      }
+      const updated = await medicationService.updateMedicationBarcode(id, barcode.trim());
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getLocations(req: Request, res: Response, next: NextFunction) {
     try {
       const locations = await medicationService.getLocations();
-      res.json(locations);
+      res.json({ success: true, data: locations });
     } catch (error) {
-      console.error('Error fetching locations:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      next(error);
     }
   },
 
-  async getCritical(req: Request, res: Response) {
+  async getCritical(req: Request, res: Response, next: NextFunction) {
     try {
       const medications = await medicationService.getCriticalMedications();
-      res.json(medications);
+      res.json({ success: true, data: medications });
     } catch (error) {
-      console.error('Error fetching critical medications:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      next(error);
     }
   },
 };

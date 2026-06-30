@@ -27,6 +27,7 @@ model User {
   password      String
   role          Role           @default(NURSE)
   name          String?
+  transactions  Transaction[]
   procedureLogs ProcedureLog[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -48,23 +49,33 @@ model Medication {
   id             Int             @id @default(autoincrement())
   barcode        String          @unique
   name           String
+  mnn            String?
+  group          String?
   minQuantity    Int             @default(10)
   batches        Batch[]
   transactions   Transaction[]
   procedureNorms ProcedureNorm[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@index([name])
 }
 
 model Batch {
-  id           Int        @id @default(autoincrement())
-  quantity     Int        @default(0)
-  medicationId Int
-  medication   Medication @relation(fields: [medicationId], references: [id])
-  locationId   Int
-  location     Location   @relation(fields: [locationId], references: [id])
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id             Int        @id @default(autoincrement())
+  quantity       Int        @default(0)
+  medicationId   Int
+  medication     Medication @relation(fields: [medicationId], references: [id])
+  locationId     Int
+  location       Location   @relation(fields: [locationId], references: [id])
+  expirationDate DateTime?
+  serialNumber   String?
+  price          Float?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([medicationId])
+  @@index([locationId])
 }
 
 enum TransactionType {
@@ -80,7 +91,15 @@ model Transaction {
   medication   Medication      @relation(fields: [medicationId], references: [id])
   locationId   Int
   location     Location        @relation(fields: [locationId], references: [id])
+  userId       Int?
+  user         User?           @relation(fields: [userId], references: [id])
+  reason       String?
   createdAt    DateTime        @default(now())
+
+  @@index([medicationId])
+  @@index([locationId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model Procedure {

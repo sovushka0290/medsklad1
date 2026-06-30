@@ -2,38 +2,42 @@ import { Router } from 'express';
 import { createProcedure, logProcedure, getProcedureComparison } from '../services/procedure.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { roleGuard } from '../middleware/role.middleware';
+import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-// Storekeeper creates procedures and norms
-router.post('/', authMiddleware, roleGuard(['ADMIN', 'STOREKEEPER']), async (req, res) => {
-  try {
+// Кладовщик создает процедуры и нормативы (СЕР-8: убран inline try-catch)
+router.post(
+  '/',
+  authMiddleware,
+  roleGuard(['ADMIN', 'STOREKEEPER']),
+  asyncHandler(async (req, res) => {
     const procedure = await createProcedure(req.body);
-    res.status(201).json(procedure);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
-});
+    res.status(201).json({ success: true, data: procedure });
+  })
+);
 
-// Nurse logs a procedure execution
-router.post('/log', authMiddleware, roleGuard(['ADMIN', 'NURSE']), async (req, res) => {
-  try {
-    const userId = (req as any).user.id;
+// Медсестра логирует выполнение процедуры
+router.post(
+  '/log',
+  authMiddleware,
+  roleGuard(['ADMIN', 'NURSE', 'HEAD_NURSE']),
+  asyncHandler(async (req, res) => {
+    const userId = req.user!.id;
     const log = await logProcedure({ ...req.body, userId });
-    res.status(201).json(log);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
-});
+    res.status(201).json({ success: true, data: log });
+  })
+);
 
-// Manager or Head Nurse view comparison (Fact vs Norm)
-router.get('/compare', authMiddleware, roleGuard(['ADMIN', 'MANAGER', 'HEAD_NURSE']), async (req, res) => {
-  try {
+// Руководитель или Главная медсестра — сравнение Факт/Норма
+router.get(
+  '/compare',
+  authMiddleware,
+  roleGuard(['ADMIN', 'MANAGER', 'HEAD_NURSE']),
+  asyncHandler(async (req, res) => {
     const comparison = await getProcedureComparison();
-    res.json(comparison);
-  } catch (error: any) {
-    res.status(400).json({ error: error.message });
-  }
-});
+    res.json({ success: true, data: comparison });
+  })
+);
 
 export default router;
