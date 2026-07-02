@@ -5,7 +5,7 @@ export const transactionController = {
   async createTransaction(req: Request, res: Response, next: NextFunction) {
     try {
       const { type, quantity, medicationId, locationId, reason } = req.body;
-      const userId = req.user?.id;
+      const userId = (req as any).user?.id;
 
       const tx = await transactionService.createTransaction({
         type,
