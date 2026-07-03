@@ -41,6 +41,17 @@ export const createProcedure = async (data: {
   });
 };
 
+export const getAllProcedures = async () => {
+  return prisma.procedure.findMany({
+    include: {
+      norms: {
+        include: { medication: { select: { id: true, name: true, minQuantity: true } } }
+      }
+    },
+    orderBy: { name: 'asc' },
+  });
+};
+
 export const logProcedure = async (data: {
   procedureId: number;
   locationId: number;

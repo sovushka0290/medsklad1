@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createProcedure, logProcedure, getProcedureComparison } from '../services/procedure.service';
+import { createProcedure, logProcedure, getProcedureComparison, getAllProcedures } from '../services/procedure.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { roleGuard } from '../middleware/role.middleware';
 import { asyncHandler } from '../middleware/asyncHandler';
@@ -14,6 +14,16 @@ router.post(
   asyncHandler(async (req, res) => {
     const procedure = await createProcedure(req.body);
     res.status(201).json({ success: true, data: procedure });
+  })
+);
+
+// Получить список всех процедур
+router.get(
+  '/',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const procedures = await getAllProcedures();
+    res.json({ success: true, data: procedures });
   })
 );
 

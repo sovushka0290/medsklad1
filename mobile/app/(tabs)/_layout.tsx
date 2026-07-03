@@ -106,10 +106,23 @@ export default function TabLayout() {
         name="nurse_dashboard"
         options={{
           href: (isNurse || role === 'ADMIN') ? '/nurse_dashboard' : null,
-          title: 'Расход',
-          headerTitle: 'Мой расход',
+          title: 'Списание',
+          headerTitle: 'Прямое списание',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'medkit' : 'medkit-outline'} size={26} color={color} />
+          ),
+        }}
+      />
+
+      {/* Процедуры (NURSE, ADMIN) */}
+      <Tabs.Screen
+        name="log_procedure"
+        options={{
+          href: (isNurse || role === 'ADMIN') ? '/log_procedure' : null,
+          title: 'Процедуры',
+          headerTitle: 'Проведенные процедуры',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'clipboard' : 'clipboard-outline'} size={26} color={color} />
           ),
         }}
       />
@@ -123,6 +136,19 @@ export default function TabLayout() {
           headerTitle: 'Статистика',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={26} color={color} />
+          ),
+        }}
+      />
+
+      {/* Факт/Норма (HEAD_NURSE, MANAGER, ADMIN) */}
+      <Tabs.Screen
+        name="fact_vs_norm"
+        options={{
+          href: isManagement ? '/fact_vs_norm' : null,
+          title: 'ГОСТ',
+          headerTitle: 'Факт vs Норматив',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={26} color={color} />
           ),
         }}
       />
