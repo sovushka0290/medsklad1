@@ -67,9 +67,10 @@ export default function ScannerScreen() {
   useEffect(() => {
     api.get('/locations')
       .then(res => {
-        setLocations(res.data);
-        if (res.data.length > 0) {
-          setSelectedLocationId(res.data[0].id);
+        const data = res.data.success ? res.data.data : res.data;
+        setLocations(data);
+        if (data.length > 0) {
+          setSelectedLocationId(data[0].id);
         }
       })
       .catch(err => {
@@ -111,8 +112,9 @@ export default function ScannerScreen() {
 
     try {
       const response = await api.get(`/medications?barcode=${data}`);
-      if (response.data && response.data.length > 0) {
-        const med = response.data[0];
+      const responseData = response.data.success ? response.data.data : response.data;
+      if (responseData && responseData.length > 0) {
+        const med = responseData[0];
         setMedication(med);
         setShowMedicationModal(true);
       } else {
@@ -136,7 +138,7 @@ export default function ScannerScreen() {
     }
     try {
       const response = await api.get(`/medications/search?q=${encodeURIComponent(text)}`);
-      setSearchResults(response.data);
+      setSearchResults(response.data.success ? response.data.data : response.data);
     } catch (err) {
       console.error('Ошибка поиска:', err);
     }
@@ -159,7 +161,8 @@ export default function ScannerScreen() {
               
               // Загружаем обновленные данные товара
               const updatedMedRes = await api.get(`/medications?barcode=${barcode}`);
-              setMedication(updatedMedRes.data[0]);
+              const updatedData = updatedMedRes.data.success ? updatedMedRes.data.data : updatedMedRes.data;
+              setMedication(updatedData[0]);
               
               // Сбрасываем режим поиска и открываем окно операций
               setShowManualSearch(false);
@@ -192,8 +195,9 @@ export default function ScannerScreen() {
 
       // Перезапрашиваем остатки по товару
       const response = await api.get(`/medications?barcode=${barcode}`);
-      if (response.data && response.data.length > 0) {
-        setMedication(response.data[0]);
+      const responseData = response.data.success ? response.data.data : response.data;
+      if (responseData && responseData.length > 0) {
+        setMedication(responseData[0]);
       }
       
       Alert.alert(

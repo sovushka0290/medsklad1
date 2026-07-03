@@ -14,7 +14,11 @@ export const MedicationList = () => {
     const endpoint = query ? `/medications/search?q=${encodeURIComponent(query)}` : '/medications';
     api.get(endpoint)
       .then(response => {
-        setMedications(response.data);
+        // /medications returns { data: [], total, ... } when no barcode filter
+        // /medications/search returns a plain array
+        const raw = response.data;
+        const list = Array.isArray(raw) ? raw : (raw.data ?? raw);
+        setMedications(Array.isArray(list) ? list : []);
         setError('');
         setLoading(false);
       })
@@ -51,7 +55,9 @@ export const MedicationList = () => {
       // Перезапрашиваем список для обновления остатков на экране
       const endpoint = searchQuery ? `/medications/search?q=${encodeURIComponent(searchQuery)}` : '/medications';
       const response = await api.get(endpoint);
-      setMedications(response.data);
+      const raw2 = response.data;
+      const list2 = Array.isArray(raw2) ? raw2 : (raw2.data ?? raw2);
+      setMedications(Array.isArray(list2) ? list2 : []);
     } catch (err: any) {
       console.error(err);
       const errMsg = err.response?.data?.error || 'Произошла ошибка при транзакции';
