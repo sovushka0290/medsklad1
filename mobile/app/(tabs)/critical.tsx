@@ -12,7 +12,8 @@ export default function CriticalScreen() {
     setLoading(true);
     api.get('/medications/critical')
       .then(response => {
-        setMedications(response.data);
+        const raw = response.data;
+        setMedications(Array.isArray(raw) ? raw : (raw.data ?? []));
         setError('');
         setLoading(false);
       })
@@ -43,7 +44,8 @@ export default function CriticalScreen() {
 
       // Перезапрашиваем список дефицита (товар может исчезнуть из списка, если остаток восстановится!)
       const response = await api.get('/medications/critical');
-      setMedications(response.data);
+      const raw = response.data;
+      setMedications(Array.isArray(raw) ? raw : (raw.data ?? []));
     } catch (err: any) {
       console.error(err);
       const errMsg = err.response?.data?.error || 'Произошла ошибка при транзакции';

@@ -10,7 +10,9 @@ export default function HeadNurseStats() {
     const fetchStats = async () => {
       try {
         const response = await api.get('/dashboard/metrics');
-        setData(response.data);
+        const raw = response.data;
+        // Backend may return { success, data } or plain object
+        setData(raw.success && raw.data ? raw.data : raw);
       } catch (error) {
         console.error('Ошибка загрузки статистики:', error);
       } finally {
