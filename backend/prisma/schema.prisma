@@ -10,7 +10,6 @@ datasource db {
 
 enum Role {
   ADMIN
-  MANAGER
   HEAD_NURSE
   STOREKEEPER
   NURSE

@@ -83,24 +83,24 @@ export const MedicationCard: React.FC<MedicationCardProps> = ({ item, onTransact
                   <TouchableOpacity
                     onPress={() => onTransaction('OUTFLOW', item.id, batch.locationId)}
                     disabled={batch.quantity <= 0}
-                    className={`w-7 h-7 rounded-lg items-center justify-center border ${
+                    className={`w-10 h-10 rounded-xl items-center justify-center border shadow-sm ${
                       batch.quantity <= 0 
-                        ? 'bg-slate-50 border-slate-200' 
-                        : 'bg-red-50 border-red-200 active:bg-red-100'
+                        ? 'bg-slate-50 border-slate-200 shadow-transparent' 
+                        : 'bg-rose-50 border-rose-200 active:bg-rose-100 shadow-rose-100/50'
                     }`}
                   >
                     <MaterialIcons 
                       name="remove" 
-                      size={16} 
-                      color={batch.quantity <= 0 ? '#CBD5E1' : '#DC2626'} 
+                      size={24} 
+                      color={batch.quantity <= 0 ? '#CBD5E1' : '#E11D48'} 
                     />
                   </TouchableOpacity>
                   
                   <TouchableOpacity
                     onPress={() => onTransaction('INCOME', item.id, batch.locationId)}
-                    className="w-7 h-7 rounded-lg items-center justify-center bg-green-50 border border-green-200 active:bg-green-100"
+                    className="w-10 h-10 rounded-xl items-center justify-center bg-emerald-50 border border-emerald-200 active:bg-emerald-100 shadow-sm shadow-emerald-100/50 ml-2"
                   >
-                    <MaterialIcons name="add" size={16} color="#16A34A" />
+                    <MaterialIcons name="add" size={24} color="#059669" />
                   </TouchableOpacity>
                 </View>
               </View>

@@ -95,8 +95,10 @@ export const MedicationList = () => {
             <MedicationCard item={item} onTransaction={handleTransaction} />
           )}
           ListEmptyComponent={
-            <View className="py-10 items-center justify-center">
-              <Text className="text-slate-400 text-base">Медикаменты не найдены</Text>
+            <View className="py-20 items-center justify-center">
+              <Text className="text-5xl mb-4">📭</Text>
+              <Text className="text-slate-500 text-lg font-bold">Медикаменты не найдены</Text>
+              <Text className="text-slate-400 text-sm mt-1 text-center px-10">Попробуйте изменить поисковой запрос или отсканируйте другой штрихкод</Text>
             </View>
           }
           contentContainerStyle={{ paddingBottom: 20 }}

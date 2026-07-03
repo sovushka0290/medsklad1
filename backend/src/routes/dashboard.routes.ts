@@ -10,7 +10,7 @@ const router = Router();
 router.get(
   '/metrics',
   authMiddleware,
-  roleGuard(['ADMIN', 'MANAGER']),
+  roleGuard(['ADMIN']),
   asyncHandler(async (req, res) => {
     const metrics = await getDashboardMetrics();
     res.json(metrics);

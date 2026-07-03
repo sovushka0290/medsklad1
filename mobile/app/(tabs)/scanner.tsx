@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Animated,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -28,6 +29,26 @@ export default function ScannerScreen() {
   const [torch, setTorch] = useState(false);
   
   const cameraRef = useRef<CameraView>(null);
+
+  // Animation for the scanning line
+  const lineAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(lineAnim, {
+          toValue: 160,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(lineAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   // Сжатие и изменение размера кадра перед отправкой в ИИ (подготовка к будущим этапам)
   const captureAndCompressImage = async () => {
@@ -228,13 +249,18 @@ export default function ScannerScreen() {
         }}
       />
 
-      {/* Оверлей-прицел */}
+      {/* Оверлей-прицел с анимацией */}
       {!scanned && (
         <View className="absolute inset-0 items-center justify-center pointer-events-none">
-          <View className="w-72 h-44 border-2 border-[#0891B2] rounded-2xl bg-transparent" />
-          <View className="bg-black/50 px-4 py-2 rounded-lg mt-6">
-            <Text className="text-white font-semibold text-center text-sm">
-              Наведите камеру на штрихкод препарата
+          <View className="w-72 h-44 border-2 border-[#0891B2] rounded-3xl bg-transparent overflow-hidden">
+             <Animated.View 
+               className="w-full h-[2px] bg-[#0891B2] shadow-lg shadow-cyan-500 absolute top-0" 
+               style={{ opacity: 0.8, transform: [{ translateY: lineAnim }] }} 
+             />
+          </View>
+          <View className="bg-black/60 px-5 py-2.5 rounded-xl mt-8 shadow-xl shadow-black">
+            <Text className="text-white font-semibold text-center text-sm tracking-wide">
+              Наведите камеру на штрихкод
             </Text>
           </View>
         </View>

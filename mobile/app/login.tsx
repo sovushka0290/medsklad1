@@ -8,7 +8,6 @@ const ROLES = [
   { id: 'ADMIN', name: 'Администратор', email: 'admin@medsklad.kz', icon: '👑', color: 'bg-rose-500', text: 'text-rose-500' },
   { id: 'HEAD_NURSE', name: 'Старшая медсестра', email: 'headnurse@medsklad.kz', icon: '⭐', color: 'bg-purple-500', text: 'text-purple-500' },
   { id: 'NURSE', name: 'Медсестра', email: 'nurse@medsklad.kz', icon: '💉', color: 'bg-emerald-500', text: 'text-emerald-500' },
-  { id: 'MANAGER', name: 'Менеджер', email: 'manager@medsklad.kz', icon: '📊', color: 'bg-blue-500', text: 'text-blue-500' },
   { id: 'STOREKEEPER', name: 'Кладовщик', email: 'storekeeper@medsklad.kz', icon: '📦', color: 'bg-amber-500', text: 'text-amber-500' }
 ];
 

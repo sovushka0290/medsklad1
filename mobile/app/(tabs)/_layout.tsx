@@ -12,8 +12,8 @@ export default function TabLayout() {
   }
 
   const role = user.role;
-  const isManagement = role === 'ADMIN' || role === 'MANAGER' || role === 'HEAD_NURSE';
-  const isStorekeeper = role === 'STOREKEEPER' || role === 'ADMIN' || role === 'MANAGER';
+  const isManagement = role === 'ADMIN' || role === 'HEAD_NURSE';
+  const isStorekeeper = role === 'STOREKEEPER' || role === 'ADMIN';
   const isNurse = role === 'NURSE';
 
   return (

@@ -25,15 +25,6 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      email: 'manager@medsklad.kz',
-      password: hashedPassword,
-      role: 'MANAGER',
-      name: 'Руководитель клиники'
-    }
-  });
-
-  await prisma.user.create({
-    data: {
       email: 'headnurse@medsklad.kz',
       password: hashedPassword,
       role: 'HEAD_NURSE',
