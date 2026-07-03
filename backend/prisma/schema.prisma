@@ -80,6 +80,8 @@ model Batch {
 enum TransactionType {
   INCOME
   OUTFLOW
+  RETURN
+  WRITE_OFF
 }
 
 model Transaction {
@@ -93,6 +95,8 @@ model Transaction {
   userId       Int?
   user         User?           @relation(fields: [userId], references: [id])
   reason       String?
+  quantityBefore Int           @default(0)
+  quantityAfter  Int           @default(0)
   createdAt    DateTime        @default(now())
 
   @@index([medicationId])

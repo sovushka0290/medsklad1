@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, FlatList, TextInput, Alert } from 'react-native';
 import { api } from '../api/api';
 import { MedicationCard } from './MedicationCard';
@@ -39,7 +39,7 @@ export const MedicationList = () => {
   };
 
   // Выполнение транзакции прямо из списка (быстрый приход/расход)
-  const handleTransaction = async (type: 'INCOME' | 'OUTFLOW', medicationId: number, locationId: number) => {
+  const handleTransaction = useCallback(async (type: 'INCOME' | 'OUTFLOW', medicationId: number, locationId: number) => {
     try {
       await api.post('/transactions', {
         type,
@@ -47,11 +47,6 @@ export const MedicationList = () => {
         medicationId,
         locationId,
       }, {
-        headers: {
-          'x-api-key': 'MedSkladSecretKey123', // Передаем API ключ
-        },
-      });
-
       // Перезапрашиваем список для обновления остатков на экране
       const endpoint = searchQuery ? `/medications/search?q=${encodeURIComponent(searchQuery)}` : '/medications';
       const response = await api.get(endpoint);
@@ -63,7 +58,11 @@ export const MedicationList = () => {
       const errMsg = err.response?.data?.error || 'Произошла ошибка при транзакции';
       Alert.alert('Ошибка', errMsg);
     }
-  };
+  }, [searchQuery]);
+
+  const renderItem = useCallback(({ item }: { item: any }) => (
+    <MedicationCard item={item} onTransaction={handleTransaction} />
+  ), [handleTransaction]);
 
   return (
     <View className="flex-1 w-full bg-[#F1F5F9]">
@@ -91,9 +90,10 @@ export const MedicationList = () => {
         <FlatList
           data={medications}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <MedicationCard item={item} onTransaction={handleTransaction} />
-          )}
+          renderItem={renderItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           ListEmptyComponent={
             <View className="py-20 items-center justify-center">
               <Text className="text-5xl mb-4">📭</Text>

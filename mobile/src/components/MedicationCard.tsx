@@ -20,7 +20,7 @@ export interface MedicationCardProps {
   onTransaction: (type: 'INCOME' | 'OUTFLOW', medicationId: number, locationId: number) => void;
 }
 
-export const MedicationCard: React.FC<MedicationCardProps> = ({ item, onTransaction }) => {
+export const MedicationCard: React.FC<MedicationCardProps> = React.memo(({ item, onTransaction }) => {
   const totalStock = item.batches?.reduce((acc, b) => acc + b.quantity, 0) || 0;
   const isCritical = totalStock < item.minQuantity;
 
@@ -107,11 +107,20 @@ export const MedicationCard: React.FC<MedicationCardProps> = ({ item, onTransact
             ))}
           </View>
         ) : (
-          <View className="mt-3 pt-3 border-t border-slate-100 flex-row justify-between items-center">
-            <Text className="text-slate-400 text-xs italic">Нет в наличии</Text>
+          <View className="mt-3 pt-3 border-t border-slate-100 flex-row items-center justify-between">
+            <Text className="text-sm text-slate-400 font-medium italic">Нет на складах</Text>
+            
+            {/* Если нет партий, разрешаем быстрый приход на Главный Склад (ID: 1) */}
+            <TouchableOpacity
+              onPress={() => onTransaction('INCOME', item.id, 1)}
+              className="flex-row items-center px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 active:bg-emerald-100"
+            >
+              <MaterialIcons name="add" size={16} color="#059669" />
+              <Text className="text-[#059669] text-xs font-bold ml-1">Приход</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
     </View>
   );
-};
+});

@@ -33,39 +33,81 @@ export const transactionService = {
 
     // Выполняем в рамках транзакции базы данных для атомарности
     return prisma.$transaction(async (tx) => {
-      // Ищем партию на складе
-      const batch = await tx.batch.findFirst({
-        where: { medicationId, locationId },
-      });
+      let quantityBefore = 0;
+      let quantityAfter = 0;
 
       if (type === TransactionType.INCOME) {
+        // Приход ищет партию с таким же сроком годности, либо любую (в MVP упрощаем до первой)
+        const batch = await tx.batch.findFirst({
+          where: { medicationId, locationId },
+          orderBy: { expirationDate: 'asc' } // FEFO сортировка
+        });
+
+        quantityBefore = batch ? batch.quantity : 0;
+        quantityAfter = quantityBefore + quantity;
+
         if (batch) {
           await tx.batch.update({
             where: { id: batch.id },
-            data: { quantity: batch.quantity + quantity },
+            data: { quantity: quantityAfter },
           });
         } else {
           await tx.batch.create({
             data: { medicationId, locationId, quantity },
           });
         }
-      } else if (type === TransactionType.OUTFLOW) {
+      } else if (type === TransactionType.OUTFLOW || type === TransactionType.WRITE_OFF) {
+        // Списание строго по FEFO (сначала старые партии)
+        const batch = await tx.batch.findFirst({
+          where: { medicationId, locationId, quantity: { gt: 0 } },
+          orderBy: { expirationDate: 'asc' }
+        });
+
         if (!batch || batch.quantity < quantity) {
           throw new Error(
             `Недостаточно товара на складе (в наличии: ${batch ? batch.quantity : 0})`
           );
         }
-        await tx.batch.update({
-          where: { id: batch.id },
-          data: { quantity: batch.quantity - quantity },
+
+        quantityBefore = batch.quantity;
+        quantityAfter = quantityBefore - quantity;
+
+        if (quantityAfter === 0) {
+          // Если остаток 0 - удаляем партию
+          await tx.batch.delete({ where: { id: batch.id } });
+        } else {
+          await tx.batch.update({
+            where: { id: batch.id },
+            data: { quantity: quantityAfter },
+          });
+        }
+      } else if (type === TransactionType.RETURN) {
+         // Возврат (пока работает как приход)
+         const batch = await tx.batch.findFirst({
+          where: { medicationId, locationId },
+          orderBy: { expirationDate: 'asc' }
         });
+
+        quantityBefore = batch ? batch.quantity : 0;
+        quantityAfter = quantityBefore + quantity;
+
+        if (batch) {
+          await tx.batch.update({
+            where: { id: batch.id },
+            data: { quantity: quantityAfter },
+          });
+        } else {
+          await tx.batch.create({
+            data: { medicationId, locationId, quantity },
+          });
+        }
       } else {
         throw new Error('Неизвестный тип транзакции');
       }
 
       // Создаем запись транзакции
       return tx.transaction.create({
-        data: { type, quantity, medicationId, locationId, userId, reason },
+        data: { type, quantity, medicationId, locationId, userId, reason, quantityBefore, quantityAfter },
         include: {
           medication: { select: { id: true, name: true, barcode: true } },
           location: { select: { id: true, name: true } },
