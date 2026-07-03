@@ -47,7 +47,6 @@ export const medicationService = {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { barcode: { contains: query, mode: 'insensitive' } },
-          { mnn: { contains: query, mode: 'insensitive' } },
         ],
       },
       include: {
