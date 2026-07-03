@@ -8,11 +8,14 @@ export interface CreateTransactionInput {
   locationId: number;
   userId?: number;
   reason?: string;
+  expirationDate?: string;
+  serialNumber?: string;
+  price?: number;
 }
 
 export const transactionService = {
   async createTransaction(input: CreateTransactionInput) {
-    const { type, quantity, medicationId, locationId, userId, reason } = input;
+    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, price } = input;
 
     if (quantity <= 0) {
       throw new Error('Количество должно быть больше нуля');
@@ -45,20 +48,35 @@ export const transactionService = {
 
       if (type === TransactionType.INCOME || type === TransactionType.RETURN) {
         quantityAfter = quantityBefore + quantity;
-        // Для прихода (пока нет сроков годности в API) просто создаем новую партию
-        // или добавляем к существующей (первой).
-        const batch = allBatches[0];
-        if (batch) {
+        
+        // Пытаемся найти партию с точно такими же параметрами (включая срок годности)
+        const expDate = expirationDate ? new Date(expirationDate) : null;
+        const matchingBatch = allBatches.find(b => 
+          (b.expirationDate?.getTime() === expDate?.getTime()) &&
+          (b.price === price)
+        );
+
+        if (matchingBatch) {
           await tx.batch.update({
-            where: { id: batch.id },
-            data: { quantity: batch.quantity + quantity },
+            where: { id: matchingBatch.id },
+            data: { quantity: matchingBatch.quantity + quantity },
           });
         } else {
           await tx.batch.create({
-            data: { medicationId, locationId, quantity },
+            data: { 
+              medicationId, 
+              locationId, 
+              quantity,
+              expirationDate: expDate,
+              serialNumber,
+              price
+            },
           });
         }
       } else if (type === TransactionType.OUTFLOW || type === TransactionType.WRITE_OFF) {
+        if (type === TransactionType.WRITE_OFF && !reason) {
+          throw new Error('Укажите причину списания');
+        }
         if (quantityBefore < quantity) {
           throw new Error(`Недостаточно товара на складе (в наличии: ${quantityBefore})`);
         }

@@ -15,7 +15,7 @@ export const getDashboardMetrics = async () => {
         name: true,
         minQuantity: true,
         batches: {
-          select: { quantity: true, price: true },
+          select: { quantity: true, price: true, expirationDate: true },
         },
       },
     }),
@@ -32,19 +32,27 @@ export const getDashboardMetrics = async () => {
 
   // Подсчёт по медикаментам
   let totalValue = 0;
-  const criticalItems: { name: string; quantity: number; minQuantity: number }[] = [];
+  const criticalItems: { name: string; quantity: number; minQuantity: number; isExpiringSoon: boolean }[] = [];
+
+  const future30 = new Date();
+  future30.setDate(future30.getDate() + 30);
 
   for (const med of allBatches) {
     let medStock = 0;
+    let isExpiringSoon = false;
     for (const batch of med.batches) {
       medStock += batch.quantity;
       totalValue += batch.quantity * (batch.price || 0);
+      if (batch.quantity > 0 && batch.expirationDate && batch.expirationDate <= future30) {
+        isExpiringSoon = true;
+      }
     }
-    if (medStock <= med.minQuantity) {
+    if (medStock <= med.minQuantity || isExpiringSoon) {
       criticalItems.push({
         name: med.name,
         quantity: medStock,
         minQuantity: med.minQuantity,
+        isExpiringSoon
       });
     }
   }

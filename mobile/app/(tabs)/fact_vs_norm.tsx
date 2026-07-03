@@ -14,6 +14,8 @@ interface NormUsage {
   medicationId: number;
   medicationName: string;
   expectedTotal: number;
+  actualTotal: number;
+  isViolation: boolean;
   minAllowed: number;
   maxAllowed: number;
   tolerancePercent: number;
@@ -23,7 +25,7 @@ interface ProcedureComparison {
   procedureId: number;
   procedureName: string;
   timesPerformed: number;
-  expectedUsage: NormUsage[];
+  usage: NormUsage[];
 }
 
 export default function FactVsNormScreen() {
@@ -64,8 +66,7 @@ export default function FactVsNormScreen() {
         <View className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex-row items-start">
           <Ionicons name="information-circle" size={18} color="#2563EB" style={{ marginTop: 1 }} />
           <Text className="text-blue-800 text-xs ml-2 flex-1">
-            Сравнение нормативного расхода МО (по ГОСТу) с фактическим количеством проведённых
-            процедур. Отклонения выделены цветом.
+            Сравнение нормативного расхода (План) с фактическими списаниями со склада (Факт). Нарушения (недорасход/перерасход) выделены красным.
           </Text>
         </View>
       </View>
@@ -116,7 +117,7 @@ export default function FactVsNormScreen() {
 
             {/* Нормативы */}
             <View className="p-4">
-              {item.expectedUsage.length === 0 ? (
+              {(!item.usage || item.usage.length === 0) ? (
                 <Text className="text-slate-400 text-sm text-center py-3">
                   Нормативы не заданы
                 </Text>
@@ -127,38 +128,44 @@ export default function FactVsNormScreen() {
                     <Text className="text-[10px] font-bold text-slate-400 uppercase flex-1">
                       Препарат
                     </Text>
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase w-20 text-center">
-                      Норма
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase w-14 text-center">
+                      План
                     </Text>
-                    <Text className="text-[10px] font-bold text-slate-400 uppercase w-16 text-center">
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase w-14 text-center">
+                      Факт
+                    </Text>
+                    <Text className="text-[10px] font-bold text-slate-400 uppercase w-16 text-right">
                       Допуск
                     </Text>
                   </View>
 
-                  {item.expectedUsage.map((norm, idx) => (
+                  {item.usage.map((norm, idx) => (
                     <View
                       key={idx}
                       className={`flex-row items-center py-2.5 ${
-                        idx < item.expectedUsage.length - 1 ? 'border-b border-slate-50' : ''
+                        idx < item.usage.length - 1 ? 'border-b border-slate-50' : ''
                       }`}
                     >
                       <View className="flex-1 pr-2">
-                        <Text className="text-sm text-[#0A2342] font-medium" numberOfLines={1}>
+                        <Text className="text-sm text-[#0A2342] font-medium" numberOfLines={2}>
                           {norm.medicationName}
                         </Text>
                       </View>
-                      <View className="w-20 items-center">
-                        <Text className="text-sm font-bold text-[#0891B2]">
+                      <View className="w-14 items-center">
+                        <Text className="text-slate-600 font-bold text-sm">
                           {norm.expectedTotal}
                         </Text>
-                        <Text className="text-[10px] text-slate-400">шт</Text>
                       </View>
-                      <View className="w-16 items-center">
-                        <Text className="text-xs text-slate-500">
+                      <View className="w-14 items-center">
+                        <View className={`px-2 py-0.5 rounded ${norm.isViolation ? 'bg-red-100' : 'bg-green-100'}`}>
+                          <Text className={`font-bold text-sm ${norm.isViolation ? 'text-red-600' : 'text-green-600'}`}>
+                            {norm.actualTotal}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="w-16 items-end">
+                        <Text className="text-slate-400 text-xs font-medium">
                           ±{norm.tolerancePercent}%
-                        </Text>
-                        <Text className="text-[10px] text-slate-400">
-                          {norm.minAllowed}–{norm.maxAllowed}
                         </Text>
                       </View>
                     </View>
@@ -166,15 +173,6 @@ export default function FactVsNormScreen() {
                 </>
               )}
             </View>
-
-            {/* Подвал: кол-во процедур */}
-            {item.timesPerformed === 0 && (
-              <View className="bg-amber-50 px-4 py-2 border-t border-amber-100">
-                <Text className="text-amber-700 text-xs text-center">
-                  Процедура ещё не проводилась — норматив рассчитан на 0 выполнений
-                </Text>
-              </View>
-            )}
           </View>
         )}
       />

@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, ActivityIndicator, FlatList, TextInput, Alert } from 'react-native';
 import { api } from '../api/api';
 import { MedicationCard } from './MedicationCard';
+import { IncomeModal } from './IncomeModal';
+import { WriteOffModal } from './WriteOffModal';
 
 export const MedicationList = () => {
   const [medications, setMedications] = useState<any[]>([]);
@@ -9,6 +11,10 @@ export const MedicationList = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const searchQueryRef = useRef(searchQuery);
+
+  // Состояние модалок
+  const [incomeModal, setIncomeModal] = useState<{ visible: boolean; medId: number; medName: string; locationId: number }>({ visible: false, medId: 0, medName: '', locationId: 0 });
+  const [writeOffModal, setWriteOffModal] = useState<{ visible: boolean; medId: number; medName: string; locationId: number }>({ visible: false, medId: 0, medName: '', locationId: 0 });
 
   useEffect(() => {
     searchQueryRef.current = searchQuery;
@@ -44,30 +50,54 @@ export const MedicationList = () => {
   };
 
   // Выполнение транзакции прямо из списка (быстрый приход/расход)
-  const handleTransaction = useCallback(async (type: 'INCOME' | 'OUTFLOW', medicationId: number, locationId: number) => {
-    try {
-      await api.post('/transactions', {
-        type,
-        quantity: 1,
-        medicationId,
-        locationId,
-      });
-      // Перезапрашиваем список для обновления остатков на экране
-      const endpoint = searchQueryRef.current ? `/medications/search?q=${encodeURIComponent(searchQueryRef.current)}` : '/medications';
-      const response = await api.get(endpoint);
-      const raw2 = response.data;
-      const list2 = Array.isArray(raw2) ? raw2 : (raw2.data ?? raw2);
-      setMedications(Array.isArray(list2) ? list2 : []);
-    } catch (err: any) {
-      console.error(err);
-      const errMsg = err.response?.data?.error || 'Произошла ошибка при транзакции';
-      Alert.alert('Ошибка', errMsg);
-    }
+  const handleIncomeSubmit = async (data: { quantity: number; expirationDate?: string; price?: number }) => {
+    await api.post('/transactions', {
+      type: 'INCOME',
+      quantity: data.quantity,
+      medicationId: incomeModal.medId,
+      locationId: incomeModal.locationId,
+      expirationDate: data.expirationDate,
+      price: data.price
+    });
+    // Перезапрашиваем список
+    const endpoint = searchQueryRef.current ? `/medications/search?q=${encodeURIComponent(searchQueryRef.current)}` : '/medications';
+    const response = await api.get(endpoint);
+    const raw2 = response.data;
+    const list2 = Array.isArray(raw2) ? raw2 : (raw2.data ?? raw2);
+    setMedications(Array.isArray(list2) ? list2 : []);
+  };
+
+  const handleWriteOffSubmit = async (data: { quantity: number; reason: string }) => {
+    await api.post('/transactions', {
+      type: 'WRITE_OFF',
+      quantity: data.quantity,
+      medicationId: writeOffModal.medId,
+      locationId: writeOffModal.locationId,
+      reason: data.reason
+    });
+    // Перезапрашиваем список
+    const endpoint = searchQueryRef.current ? `/medications/search?q=${encodeURIComponent(searchQueryRef.current)}` : '/medications';
+    const response = await api.get(endpoint);
+    const raw2 = response.data;
+    const list2 = Array.isArray(raw2) ? raw2 : (raw2.data ?? raw2);
+    setMedications(Array.isArray(list2) ? list2 : []);
+  };
+
+  const handleIncomeClick = useCallback((medicationId: number, medicationName: string, locationId: number) => {
+    setIncomeModal({ visible: true, medId: medicationId, medName: medicationName, locationId });
+  }, []);
+
+  const handleWriteOffClick = useCallback((medicationId: number, medicationName: string, locationId: number) => {
+    setWriteOffModal({ visible: true, medId: medicationId, medName: medicationName, locationId });
   }, []);
 
   const renderItem = useCallback(({ item }: { item: any }) => (
-    <MedicationCard item={item} onTransaction={handleTransaction} />
-  ), [handleTransaction]);
+    <MedicationCard 
+      item={item} 
+      onIncomeClick={handleIncomeClick} 
+      onWriteOffClick={handleWriteOffClick} 
+    />
+  ), [handleIncomeClick, handleWriteOffClick]);
 
   return (
     <View className="flex-1 w-full bg-[#F1F5F9]">
@@ -81,7 +111,21 @@ export const MedicationList = () => {
           onChangeText={handleSearch}
           clearButtonMode="while-editing"
         />
-      </View>
+
+      <IncomeModal 
+        visible={incomeModal.visible}
+        medicationName={incomeModal.medName}
+        onClose={() => setIncomeModal(prev => ({ ...prev, visible: false }))}
+        onSubmit={handleIncomeSubmit}
+      />
+
+      <WriteOffModal 
+        visible={writeOffModal.visible}
+        medicationName={writeOffModal.medName}
+        onClose={() => setWriteOffModal(prev => ({ ...prev, visible: false }))}
+        onSubmit={handleWriteOffSubmit}
+      />
+    </View>
 
       {error ? (
         <View className="bg-red-50 p-4 rounded-xl border border-red-100 mb-4">

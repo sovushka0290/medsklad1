@@ -15,12 +15,14 @@ export interface MedicationCardProps {
       location?: {
         name: string;
       };
+      expirationDate?: string;
     }>;
   };
-  onTransaction: (type: 'INCOME' | 'OUTFLOW', medicationId: number, locationId: number) => void;
+  onIncomeClick: (medicationId: number, medicationName: string, locationId: number) => void;
+  onWriteOffClick: (medicationId: number, medicationName: string, locationId: number) => void;
 }
 
-export const MedicationCard: React.FC<MedicationCardProps> = React.memo(({ item, onTransaction }) => {
+export const MedicationCard: React.FC<MedicationCardProps> = React.memo(({ item, onIncomeClick, onWriteOffClick }) => {
   const totalStock = item.batches?.reduce((acc, b) => acc + b.quantity, 0) || 0;
   const isCritical = totalStock < item.minQuantity;
 
@@ -62,61 +64,67 @@ export const MedicationCard: React.FC<MedicationCardProps> = React.memo(({ item,
           </View>
         </View>
 
-        {/* Секция партий по складам с быстрыми кнопками */}
         {item.batches && item.batches.length > 0 ? (
           <View className="mt-3 pt-3 border-t border-slate-100">
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">
               Остатки по складам:
             </Text>
-            {item.batches.map((batch) => (
-              <View key={batch.id} className="flex-row justify-between items-center py-1.5">
-                <Text className="text-slate-600 text-sm flex-1">
-                  {batch.location?.name || `Кабинет #${batch.locationId}`}
-                </Text>
-                
-                <View className="flex-row items-center space-x-3">
-                  <Text className="text-[#0A2342] font-semibold text-sm mr-2">
-                    {batch.quantity} шт
-                  </Text>
+            {item.batches.map((batch) => {
+              const expDateStr = batch.expirationDate ? new Date(batch.expirationDate).toLocaleDateString() : 'Без срока';
+              return (
+                <View key={batch.id} className="flex-row justify-between items-center py-2 border-b border-gray-50">
+                  <View className="flex-1">
+                    <Text className="text-slate-700 font-bold text-sm">
+                      {batch.location?.name || `Кабинет #${batch.locationId}`}
+                    </Text>
+                    <Text className="text-slate-400 text-xs mt-0.5">
+                      Срок: {expDateStr}
+                    </Text>
+                  </View>
                   
-                  {/* Кнопки Быстрого списания/прихода */}
-                  <TouchableOpacity
-                    onPress={() => onTransaction('OUTFLOW', item.id, batch.locationId)}
-                    disabled={batch.quantity <= 0}
-                    className={`w-10 h-10 rounded-xl items-center justify-center border shadow-sm ${
-                      batch.quantity <= 0 
-                        ? 'bg-slate-50 border-slate-200 shadow-transparent' 
-                        : 'bg-rose-50 border-rose-200 active:bg-rose-100 shadow-rose-100/50'
-                    }`}
-                  >
-                    <MaterialIcons 
-                      name="remove" 
-                      size={24} 
-                      color={batch.quantity <= 0 ? '#CBD5E1' : '#E11D48'} 
-                    />
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    onPress={() => onTransaction('INCOME', item.id, batch.locationId)}
-                    className="w-10 h-10 rounded-xl items-center justify-center bg-emerald-50 border border-emerald-200 active:bg-emerald-100 shadow-sm shadow-emerald-100/50 ml-2"
-                  >
-                    <MaterialIcons name="add" size={24} color="#059669" />
-                  </TouchableOpacity>
+                  <View className="flex-row items-center space-x-3">
+                    <Text className="text-[#0A2342] font-black text-sm mr-2">
+                      {batch.quantity} шт
+                    </Text>
+                    
+                    <TouchableOpacity
+                      onPress={() => onWriteOffClick(item.id, item.name, batch.locationId)}
+                      disabled={batch.quantity <= 0}
+                      className={`w-10 h-10 rounded-xl items-center justify-center border shadow-sm ${
+                        batch.quantity <= 0 
+                          ? 'bg-slate-50 border-slate-200 shadow-transparent' 
+                          : 'bg-rose-50 border-rose-200 active:bg-rose-100 shadow-rose-100/50'
+                      }`}
+                    >
+                      <MaterialIcons 
+                        name="remove" 
+                        size={24} 
+                        color={batch.quantity <= 0 ? '#CBD5E1' : '#E11D48'} 
+                      />
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      onPress={() => onIncomeClick(item.id, item.name, batch.locationId)}
+                      className="w-10 h-10 rounded-xl items-center justify-center bg-emerald-50 border border-emerald-200 active:bg-emerald-100 shadow-sm shadow-emerald-100/50 ml-2"
+                    >
+                      <MaterialIcons name="add" size={24} color="#059669" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View className="mt-3 pt-3 border-t border-slate-100 flex-row items-center justify-between">
             <Text className="text-sm text-slate-400 font-medium italic">Нет на складах</Text>
             
-            {/* Если нет партий, разрешаем быстрый приход на Главный Склад (ID: 1) */}
+            {/* Если нет партий, разрешаем приход на Главный Склад (ID: 1) */}
             <TouchableOpacity
-              onPress={() => onTransaction('INCOME', item.id, 1)}
-              className="flex-row items-center px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 active:bg-emerald-100"
+              onPress={() => onIncomeClick(item.id, item.name, 1)}
+              className="flex-row items-center px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 active:bg-emerald-100"
             >
-              <MaterialIcons name="add" size={16} color="#059669" />
-              <Text className="text-[#059669] text-xs font-bold ml-1">Приход</Text>
+              <MaterialIcons name="add" size={18} color="#059669" />
+              <Text className="text-[#059669] text-xs font-bold ml-1">Новая партия</Text>
             </TouchableOpacity>
           </View>
         )}
