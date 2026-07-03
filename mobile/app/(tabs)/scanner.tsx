@@ -12,8 +12,8 @@ import {
   Alert,
   FlatList,
   Animated,
-} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useIsFocused } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { MaterialIcons } from '@expo/vector-icons';
 import { api } from '../../src/api/api';
@@ -28,13 +28,14 @@ export default function ScannerScreen() {
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [torch, setTorch] = useState(false);
   
+  const isFocused = useIsFocused();
   const cameraRef = useRef<CameraView>(null);
 
   // Animation for the scanning line
   const lineAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(lineAnim, {
           toValue: 160,
@@ -47,7 +48,9 @@ export default function ScannerScreen() {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
 
   // Сжатие и изменение размера кадра перед отправкой в ИИ (подготовка к будущим этапам)
@@ -238,16 +241,18 @@ export default function ScannerScreen() {
   return (
     <View className="flex-1 bg-black">
       {/* Камера */}
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        enableTorch={torch}
-        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ['ean13', 'ean8', 'qr', 'upc_a', 'upc_e', 'code128'],
-        }}
-      />
+      {isFocused && !showMedicationModal && !showManualSearch && (
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          enableTorch={torch}
+          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ['ean13', 'ean8', 'qr', 'upc_a', 'upc_e', 'code128'],
+          }}
+        />
+      )}
 
       {/* Оверлей-прицел с анимацией */}
       {!scanned && (

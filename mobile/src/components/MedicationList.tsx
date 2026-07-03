@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, ActivityIndicator, FlatList, TextInput, Alert } from 'react-native';
 import { api } from '../api/api';
 import { MedicationCard } from './MedicationCard';
@@ -8,6 +8,11 @@ export const MedicationList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const searchQueryRef = useRef(searchQuery);
+
+  useEffect(() => {
+    searchQueryRef.current = searchQuery;
+  }, [searchQuery]);
 
   const fetchMedications = (query: string = '') => {
     setLoading(true);
@@ -46,9 +51,9 @@ export const MedicationList = () => {
         quantity: 1,
         medicationId,
         locationId,
-      }, {
+      });
       // Перезапрашиваем список для обновления остатков на экране
-      const endpoint = searchQuery ? `/medications/search?q=${encodeURIComponent(searchQuery)}` : '/medications';
+      const endpoint = searchQueryRef.current ? `/medications/search?q=${encodeURIComponent(searchQueryRef.current)}` : '/medications';
       const response = await api.get(endpoint);
       const raw2 = response.data;
       const list2 = Array.isArray(raw2) ? raw2 : (raw2.data ?? raw2);
@@ -58,7 +63,7 @@ export const MedicationList = () => {
       const errMsg = err.response?.data?.error || 'Произошла ошибка при транзакции';
       Alert.alert('Ошибка', errMsg);
     }
-  }, [searchQuery]);
+  }, []);
 
   const renderItem = useCallback(({ item }: { item: any }) => (
     <MedicationCard item={item} onTransaction={handleTransaction} />

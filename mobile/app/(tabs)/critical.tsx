@@ -36,10 +36,6 @@ export default function CriticalScreen() {
         quantity: 1,
         medicationId,
         locationId,
-      }, {
-        headers: {
-          'x-api-key': 'MedSkladSecretKey123', // Передаем API ключ
-        },
       });
 
       // Перезапрашиваем список дефицита (товар может исчезнуть из списка, если остаток восстановится!)

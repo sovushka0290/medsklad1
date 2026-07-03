@@ -64,23 +64,78 @@ export const logProcedure = async (data: {
     throw new Error('Некорректный ID локации');
   }
 
-  // Проверяем что процедура существует
-  const procedure = await prisma.procedure.findUnique({ where: { id: data.procedureId } });
-  if (!procedure) {
-    throw new Error('Процедура не найдена');
-  }
+  return prisma.$transaction(async (tx) => {
+    // Проверяем что процедура существует
+    const procedure = await tx.procedure.findUnique({ 
+      where: { id: data.procedureId },
+      include: { norms: true }
+    });
+    
+    if (!procedure) {
+      throw new Error('Процедура не найдена');
+    }
 
-  return prisma.procedureLog.create({
-    data: {
-      procedureId: data.procedureId,
-      locationId: data.locationId,
-      userId: data.userId,
-    },
-    include: {
-      procedure: { select: { id: true, name: true } },
-      location: { select: { id: true, name: true } },
-      user: { select: { id: true, name: true, role: true } },
-    },
+    // Списываем медикаменты со склада согласно нормам
+    for (const norm of procedure.norms) {
+      // Ищем партии списанием по FEFO
+      const batches = await tx.batch.findMany({
+        where: { medicationId: norm.medicationId, locationId: data.locationId, quantity: { gt: 0 } },
+        orderBy: { expirationDate: 'asc' }
+      });
+
+      let remainingToDeduct = norm.expectedQuantity;
+      
+      for (const batch of batches) {
+        if (remainingToDeduct <= 0) break;
+
+        const deductAmount = Math.min(batch.quantity, remainingToDeduct);
+        const quantityBefore = batch.quantity;
+        const quantityAfter = quantityBefore - deductAmount;
+
+        // Создаем транзакцию списания
+        await tx.transaction.create({
+          data: {
+            type: 'OUTFLOW',
+            quantity: deductAmount,
+            medicationId: norm.medicationId,
+            locationId: data.locationId,
+            userId: data.userId,
+            reason: `Списание на процедуру: ${procedure.name}`,
+            quantityBefore,
+            quantityAfter
+          }
+        });
+
+        if (quantityAfter === 0) {
+          await tx.batch.delete({ where: { id: batch.id } });
+        } else {
+          await tx.batch.update({
+            where: { id: batch.id },
+            data: { quantity: quantityAfter }
+          });
+        }
+
+        remainingToDeduct -= deductAmount;
+      }
+
+      if (remainingToDeduct > 0) {
+        throw new Error(`Недостаточно медикамента (ID: ${norm.medicationId}) для проведения процедуры`);
+      }
+    }
+
+    // Логируем саму процедуру
+    return tx.procedureLog.create({
+      data: {
+        procedureId: data.procedureId,
+        locationId: data.locationId,
+        userId: data.userId,
+      },
+      include: {
+        procedure: { select: { id: true, name: true } },
+        location: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, role: true } },
+      },
+    });
   });
 };
 

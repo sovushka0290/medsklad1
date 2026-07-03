@@ -36,20 +36,22 @@ export const transactionService = {
       let quantityBefore = 0;
       let quantityAfter = 0;
 
-      if (type === TransactionType.INCOME) {
-        // Приход ищет партию с таким же сроком годности, либо любую (в MVP упрощаем до первой)
-        const batch = await tx.batch.findFirst({
-          where: { medicationId, locationId },
-          orderBy: { expirationDate: 'asc' } // FEFO сортировка
-        });
+      // Считаем общий остаток до операции (сумма всех партий)
+      const allBatches = await tx.batch.findMany({
+        where: { medicationId, locationId },
+        orderBy: { expirationDate: 'asc' }
+      });
+      quantityBefore = allBatches.reduce((sum, b) => sum + b.quantity, 0);
 
-        quantityBefore = batch ? batch.quantity : 0;
+      if (type === TransactionType.INCOME || type === TransactionType.RETURN) {
         quantityAfter = quantityBefore + quantity;
-
+        // Для прихода (пока нет сроков годности в API) просто создаем новую партию
+        // или добавляем к существующей (первой).
+        const batch = allBatches[0];
         if (batch) {
           await tx.batch.update({
             where: { id: batch.id },
-            data: { quantity: quantityAfter },
+            data: { quantity: batch.quantity + quantity },
           });
         } else {
           await tx.batch.create({
@@ -57,49 +59,27 @@ export const transactionService = {
           });
         }
       } else if (type === TransactionType.OUTFLOW || type === TransactionType.WRITE_OFF) {
-        // Списание строго по FEFO (сначала старые партии)
-        const batch = await tx.batch.findFirst({
-          where: { medicationId, locationId, quantity: { gt: 0 } },
-          orderBy: { expirationDate: 'asc' }
-        });
-
-        if (!batch || batch.quantity < quantity) {
-          throw new Error(
-            `Недостаточно товара на складе (в наличии: ${batch ? batch.quantity : 0})`
-          );
+        if (quantityBefore < quantity) {
+          throw new Error(`Недостаточно товара на складе (в наличии: ${quantityBefore})`);
         }
-
-        quantityBefore = batch.quantity;
+        
         quantityAfter = quantityBefore - quantity;
+        let remainingToDeduct = quantity;
 
-        if (quantityAfter === 0) {
-          // Если остаток 0 - удаляем партию
-          await tx.batch.delete({ where: { id: batch.id } });
-        } else {
-          await tx.batch.update({
-            where: { id: batch.id },
-            data: { quantity: quantityAfter },
-          });
-        }
-      } else if (type === TransactionType.RETURN) {
-         // Возврат (пока работает как приход)
-         const batch = await tx.batch.findFirst({
-          where: { medicationId, locationId },
-          orderBy: { expirationDate: 'asc' }
-        });
+        for (const batch of allBatches) {
+          if (remainingToDeduct <= 0) break;
+          const deductAmount = Math.min(batch.quantity, remainingToDeduct);
+          const newBatchQuantity = batch.quantity - deductAmount;
 
-        quantityBefore = batch ? batch.quantity : 0;
-        quantityAfter = quantityBefore + quantity;
-
-        if (batch) {
-          await tx.batch.update({
-            where: { id: batch.id },
-            data: { quantity: quantityAfter },
-          });
-        } else {
-          await tx.batch.create({
-            data: { medicationId, locationId, quantity },
-          });
+          if (newBatchQuantity === 0) {
+            await tx.batch.delete({ where: { id: batch.id } });
+          } else {
+            await tx.batch.update({
+              where: { id: batch.id },
+              data: { quantity: newBatchQuantity },
+            });
+          }
+          remainingToDeduct -= deductAmount;
         }
       } else {
         throw new Error('Неизвестный тип транзакции');
