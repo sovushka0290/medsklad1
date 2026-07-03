@@ -13,7 +13,7 @@ router.get(
   roleGuard(['ADMIN', 'MANAGER']),
   asyncHandler(async (req, res) => {
     const metrics = await getDashboardMetrics();
-    res.json({ success: true, data: metrics });
+    res.json(metrics);
   })
 );
 

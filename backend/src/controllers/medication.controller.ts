@@ -17,7 +17,7 @@ export const medicationController = {
       }
 
       const medications = await medicationService.getAllMedications(barcode, page, limit);
-      res.json({ success: true, data: medications });
+      res.json(medications);
     } catch (error) {
       next(error);
     }
@@ -26,7 +26,7 @@ export const medicationController = {
   async getInventory(req: Request, res: Response, next: NextFunction) {
     try {
       const inventory = await medicationService.getInventorySummary();
-      res.json({ success: true, data: inventory });
+      res.json(inventory);
     } catch (error) {
       next(error);
     }
@@ -36,10 +36,10 @@ export const medicationController = {
     try {
       const q = (req.query.q as string) || '';
       if (q.length < 2) {
-        return res.json({ success: true, data: [] });
+        return res.json([]);
       }
       const medications = await medicationService.searchMedications(q);
-      res.json({ success: true, data: medications });
+      res.json(medications);
     } catch (error) {
       next(error);
     }
@@ -56,7 +56,7 @@ export const medicationController = {
         return res.status(400).json({ success: false, error: 'Штрихкод обязателен для заполнения' });
       }
       const updated = await medicationService.updateMedicationBarcode(id, barcode.trim());
-      res.json({ success: true, data: updated });
+      res.json(updated);
     } catch (error) {
       next(error);
     }
@@ -65,7 +65,7 @@ export const medicationController = {
   async getLocations(req: Request, res: Response, next: NextFunction) {
     try {
       const locations = await medicationService.getLocations();
-      res.json({ success: true, data: locations });
+      res.json(locations);
     } catch (error) {
       next(error);
     }
@@ -74,7 +74,7 @@ export const medicationController = {
   async getCritical(req: Request, res: Response, next: NextFunction) {
     try {
       const medications = await medicationService.getCriticalMedications();
-      res.json({ success: true, data: medications });
+      res.json(medications);
     } catch (error) {
       next(error);
     }

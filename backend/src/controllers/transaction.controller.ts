@@ -16,7 +16,7 @@ export const transactionController = {
         reason,
       });
 
-      res.status(201).json({ success: true, data: tx });
+      res.status(201).json(tx);
     } catch (error: any) {
       // Бизнес-ошибки (недостаточно товара и т.д.) — 400
       if (error.message && !error.message.includes('prisma')) {
@@ -39,7 +39,7 @@ export const transactionController = {
       }
 
       const result = await transactionService.getTransactionHistory(page, limit);
-      res.json({ success: true, ...result });
+      res.json(result);
     } catch (error) {
       next(error);
     }
