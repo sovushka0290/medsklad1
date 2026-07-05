@@ -88,20 +88,71 @@ export const scanInventoryItem = async (sessionId: number, barcode: string, quan
   return item;
 };
 
+export const getCompletedSessions = async () => {
+  return prisma.inventorySession.findMany({
+    where: { status: InventoryStatus.COMPLETED },
+    include: {
+      location: true,
+      user: { select: { id: true, name: true } },
+      items: { include: { medication: true } },
+    },
+    orderBy: { completedAt: 'desc' },
+  });
+};
+
+export const adjustInventoryItem = async (
+  sessionId: number,
+  barcode: string,
+  quantityAdjustment: number
+) => {
+  // Find medication by barcode
+  const med = await prisma.medication.findFirst({
+    where: { barcodes: { has: barcode } },
+  });
+  if (!med) throw new Error('Медикамент с таким штрихкодом не найден');
+
+  // Find existing inventory item
+  const item = await prisma.inventoryItem.findFirst({
+    where: { sessionId, medicationId: med.id },
+  });
+  if (!item) {
+    // If item does not exist, create it with expectedQuantity = 0
+    return await prisma.inventoryItem.create({
+      data: {
+        sessionId,
+        medicationId: med.id,
+        expectedQuantity: 0,
+        actualQuantity: quantityAdjustment,
+        difference: quantityAdjustment,
+      },
+    });
+  }
+
+  // Update actual quantity and difference
+  const newActual = (item.actualQuantity || 0) + quantityAdjustment;
+  return await prisma.inventoryItem.update({
+    where: { id: item.id },
+    data: {
+      actualQuantity: newActual,
+      difference: newActual - item.expectedQuantity,
+    },
+  });
+};
+
 export const completeInventorySession = async (sessionId: number) => {
   // Закрываем сессию
   const session = await prisma.inventorySession.update({
     where: { id: sessionId },
     data: {
       status: InventoryStatus.COMPLETED,
-      completedAt: new Date()
+      completedAt: new Date(),
     },
     include: {
       items: {
-        include: { medication: true }
+        include: { medication: true },
       },
-      location: true
-    }
+      location: true,
+    },
   });
 
   return session;

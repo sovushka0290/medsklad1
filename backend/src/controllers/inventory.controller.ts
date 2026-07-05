@@ -47,3 +47,37 @@ export const completeSession = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// New: close session alias (same as complete)
+export const closeSession = async (req: Request, res: Response) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const session = await inventoryService.completeInventorySession(sessionId);
+    res.json(session);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// New: get session history (completed sessions)
+export const getSessionHistory = async (req: Request, res: Response) => {
+  try {
+    const sessions = await inventoryService.getCompletedSessions();
+    res.json(sessions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// New: adjust quantity of an inventory item
+export const adjustQuantity = async (req: Request, res: Response) => {
+  try {
+    const sessionId = Number(req.params.id);
+    const { barcode, quantityAdjustment } = req.body;
+    if (!barcode) return res.status(400).json({ error: 'barcode required' });
+    const item = await inventoryService.adjustInventoryItem(sessionId, barcode, quantityAdjustment ?? 0);
+    res.json(item);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

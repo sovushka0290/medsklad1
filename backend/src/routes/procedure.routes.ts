@@ -40,6 +40,17 @@ router.post(
 );
 
 // Руководитель или Главная медсестра — сравнение Факт/Норма
+// Primary route
+router.get(
+  '/comparison',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE']),
+  asyncHandler(async (req, res) => {
+    const comparison = await getProcedureComparison();
+    res.json({ success: true, data: comparison });
+  })
+);
+// Backward‑compatible alias
 router.get(
   '/compare',
   authMiddleware,

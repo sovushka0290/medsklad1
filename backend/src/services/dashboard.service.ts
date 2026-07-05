@@ -3,7 +3,7 @@ import NodeCache from 'node-cache';
 
 const dashboardCache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
-export const getDashboardMetrics = async () => {
+export const getDashboardMetrics = async (filter?: string) => {
   const cacheKey = 'dashboard_metrics';
   const cached = dashboardCache.get(cacheKey);
   if (cached) {
@@ -37,15 +37,15 @@ export const getDashboardMetrics = async () => {
       take: 10,
     }),
 
-    // 4. Динамика расхода за последние 7 дней
-    prisma.$queryRaw<{ date: string; total: number }[]>`
+    // 4. Динамика расхода
+    prisma.$queryRawUnsafe<{ date: string; total: number }[]>(`
       SELECT DATE(t."createdAt") as date, CAST(SUM(t."quantity") AS FLOAT) as total
       FROM "Transaction" t
       WHERE t.type IN ('OUTFLOW', 'WRITE_OFF')
-        AND t."createdAt" >= NOW() - INTERVAL '7 days'
+        AND ${dateCondition}
       GROUP BY DATE(t."createdAt")
       ORDER BY DATE(t."createdAt") ASC;
-    `,
+    `),
   ]);
 
   // Подсчёт по медикаментам
