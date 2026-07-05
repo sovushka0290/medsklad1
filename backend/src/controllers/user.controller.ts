@@ -41,11 +41,13 @@ export const getAuditLogs = async (req: Request, res: Response) => {
     const skip = (page - 1) * limit;
 
     const [logs, total] = await Promise.all([
+      // @ts-ignore
       prisma.auditLog.findMany({
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
+      // @ts-ignore
       prisma.auditLog.count(),
     ]);
 

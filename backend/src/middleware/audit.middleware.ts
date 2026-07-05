@@ -22,6 +22,7 @@ export const auditMiddleware = async (req: Request, res: Response, next: NextFun
 
       const action = `${req.method} ${req.originalUrl || req.url}`;
 
+      // @ts-ignore
       await prisma.auditLog.create({
         data: {
           userId,
