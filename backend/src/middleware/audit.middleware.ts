@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import { logger } from '../lib/logger';
 
 export const auditMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   // Исключаем хелсчек, чтобы не засорять базу
@@ -32,7 +33,7 @@ export const auditMiddleware = async (req: Request, res: Response, next: NextFun
         },
       });
     } catch (error) {
-      console.error('[AuditLog Error]:', error);
+      logger.error('[AuditLog Error]: ' + error);
     }
   });
 

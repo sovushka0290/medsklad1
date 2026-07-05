@@ -9,12 +9,12 @@ import compression from 'compression';
 
 import { config } from './config';
 import { prisma } from './lib/prisma';
+import { logger } from './lib/logger';
 import authRoutes from './routes/auth.routes';
 import medicationRoutes from './routes/medication.routes';
 import transactionRoutes from './routes/transaction.routes';
 import procedureRoutes from './routes/procedure.routes';
 import dashboardRoutes from './routes/dashboard.routes';
-// auditLog удалён — используем только auditMiddleware
 import importRoutes from './routes/import.routes';
 import exportRoutes from './routes/export.routes';
 import aiRoutes from './routes/ai.routes';
@@ -38,12 +38,15 @@ app.use(helmet({
 }));
 app.use(cors({ origin: config.cors.origin }));
 app.use(hpp());
-// 🔐 SECURITY: Morgan только в режиме development (в prod используем 'combined')
-if (process.env.NODE_ENV !== 'production') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
+
+// Логирование HTTP-запросов через winston
+const morganFormat = process.env.NODE_ENV !== 'production' ? 'dev' : 'combined';
+app.use(morgan(morganFormat, {
+  stream: {
+    write: (message) => logger.info(message.trim())
+  }
+}));
+
 app.use(auditMiddleware);
 
 // Global Rate Limiting
@@ -73,6 +76,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 // 404 handler (АРХ-4)
 app.use((req: Request, res: Response) => {
+  logger.warn(`Маршрут ${req.method} ${req.path} не найден`);
   res.status(404).json({ success: false, error: `Маршрут ${req.method} ${req.path} не найден` });
 });
 
@@ -81,16 +85,16 @@ app.use(errorHandler);
 
 // Запуск сервера с graceful shutdown (КАЧ-6)
 const server = app.listen(config.port, () => {
-  console.log(`[MedSklad] Сервер запущен на порту ${config.port}`);
+  logger.info(`[MedSklad] Сервер запущен на порту ${config.port}`);
 });
 
 server.timeout = 30000; // 30 секунд таймаут (АРХ-5)
 
 const shutdown = async (signal: string) => {
-  console.log(`\n[MedSklad] Получен ${signal}, завершение работы...`);
+  logger.info(`[MedSklad] Получен ${signal}, завершение работы...`);
   server.close(async () => {
     await prisma.$disconnect();
-    console.log('[MedSklad] БД отключена, сервер остановлен.');
+    logger.info('[MedSklad] БД отключена, сервер остановлен.');
     process.exit(0);
   });
 };
