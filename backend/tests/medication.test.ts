@@ -12,7 +12,7 @@ jest.mock('../src/lib/prisma', () => ({
       findUnique: jest.fn(),
 =======
 import { Request, Response } from 'express';
-import { create } from '../src/controllers/medication.controller';
+import { medicationController } from '../src/controllers/medication.controller';
 
 jest.mock('../src/lib/prisma', () => ({
   prisma: {
@@ -143,7 +143,7 @@ describe('Medication Controller Tests', () => {
     (prisma.medication.findFirst as jest.Mock).mockResolvedValue(null); // No existing med with same name
     (prisma.medication.create as jest.Mock).mockResolvedValue(newMedication);
 
-    await create(mockRequest as Request, mockResponse as Response);
+    await medicationController.create(mockRequest as Request, mockResponse as Response);
 
     expect(prisma.medication.findFirst).toHaveBeenCalledWith({
       where: { name: 'Парацетамол' }

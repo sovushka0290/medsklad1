@@ -66,11 +66,13 @@ describe('Audit Log Middleware Tests', () => {
     
     await finishCallback();
 
+    // @ts-ignore
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: 10,
         ipAddress: '127.0.0.1',
         action: 'GET /api/medications',
+        endpoint: '/api/medications',
       }
     });
   });
