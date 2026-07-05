@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import hpp from 'hpp';
 import morgan from 'morgan';
+import compression from 'compression';
 
 import { config } from './config';
 import { prisma } from './lib/prisma';
@@ -14,9 +15,16 @@ import transactionRoutes from './routes/transaction.routes';
 import procedureRoutes from './routes/procedure.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import importRoutes from './routes/import.routes';
+import exportRoutes from './routes/export.routes';
+import aiRoutes from './routes/ai.routes';
+import inventoryRoutes from './routes/inventory.routes';
+import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/error.middleware';
 
 const app = express();
+
+// Performance Optimization
+app.use(compression());
 
 // Security Middlewares
 app.use(helmet({
@@ -43,6 +51,10 @@ app.use('/api', transactionRoutes);
 app.use('/api/procedures', procedureRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/import', importRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {

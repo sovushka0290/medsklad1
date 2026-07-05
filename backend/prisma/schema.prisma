@@ -13,6 +13,7 @@ enum Role {
   HEAD_NURSE
   STOREKEEPER
   NURSE
+  MANAGER
 }
 
 enum LocationType {
@@ -21,39 +22,46 @@ enum LocationType {
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  password      String
-  role          Role           @default(NURSE)
-  name          String?
-  transactions  Transaction[]
-  procedureLogs ProcedureLog[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  password          String
+  role              Role               @default(NURSE)
+  name              String?
+  isActive          Boolean            @default(true) // <-- Added isActive
+  pushToken         String? // <-- Added pushToken
+  transactions      Transaction[]
+  procedureLogs     ProcedureLog[]
+  inventorySessions InventorySession[] // <-- Added relation
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Location {
-  id            Int            @id @default(autoincrement())
-  name          String
-  type          LocationType   @default(CABINET)
-  description   String?
-  batches       Batch[]
-  transactions  Transaction[]
-  procedureLogs ProcedureLog[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                Int                @id @default(autoincrement())
+  name              String
+  type              LocationType       @default(CABINET)
+  description       String?
+  batches           Batch[]
+  transactions      Transaction[]
+  procedureLogs     ProcedureLog[]
+  inventorySessions InventorySession[] // <-- Added relation
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Medication {
   id             Int             @id @default(autoincrement())
-  barcode        String          @unique
+  barcodes       String[]
   name           String
   mnn            String?
+  form           String?
+  unit           String?
   group          String?
   minQuantity    Int             @default(10)
   batches        Batch[]
   transactions   Transaction[]
   procedureNorms ProcedureNorm[]
+  inventoryItems InventoryItem[] // <-- Added relation
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -62,19 +70,21 @@ model Medication {
 
 model Batch {
   id             Int        @id @default(autoincrement())
-  quantity       Int        @default(0)
   medicationId   Int
   medication     Medication @relation(fields: [medicationId], references: [id])
   locationId     Int
   location       Location   @relation(fields: [locationId], references: [id])
-  expirationDate DateTime?
-  serialNumber   String?
+  quantity       Int
   price          Float?
+  supplier       String?
+  serialNumber   String? // <-- Added serialNumber
+  expirationDate DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   @@index([medicationId])
   @@index([locationId])
+  @@index([locationId, medicationId])
 }
 
 enum TransactionType {
@@ -85,22 +95,23 @@ enum TransactionType {
 }
 
 model Transaction {
-  id           Int             @id @default(autoincrement())
-  type         TransactionType
-  quantity     Int
-  medicationId Int
-  medication   Medication      @relation(fields: [medicationId], references: [id])
-  locationId   Int
-  location     Location        @relation(fields: [locationId], references: [id])
-  userId       Int?
-  user         User?           @relation(fields: [userId], references: [id])
-  reason       String?
-  quantityBefore Int           @default(0)
-  quantityAfter  Int           @default(0)
-  createdAt    DateTime        @default(now())
+  id             Int             @id @default(autoincrement())
+  type           TransactionType
+  quantity       Int
+  medicationId   Int
+  medication     Medication      @relation(fields: [medicationId], references: [id])
+  locationId     Int
+  location       Location        @relation(fields: [locationId], references: [id])
+  userId         Int?
+  user           User?           @relation(fields: [userId], references: [id])
+  reason         String?
+  quantityBefore Int             @default(0)
+  quantityAfter  Int             @default(0)
+  createdAt      DateTime        @default(now())
 
   @@index([medicationId])
   @@index([locationId])
+  @@index([locationId, createdAt])
   @@index([type])
   @@index([createdAt])
 }
@@ -128,12 +139,51 @@ model ProcedureNorm {
 }
 
 model ProcedureLog {
-  id           Int        @id @default(autoincrement())
-  procedureId  Int
-  procedure    Procedure  @relation(fields: [procedureId], references: [id])
-  locationId   Int
-  location     Location   @relation(fields: [locationId], references: [id])
-  userId       Int
-  user         User       @relation(fields: [userId], references: [id])
-  createdAt    DateTime   @default(now())
+  id          Int       @id @default(autoincrement())
+  procedureId Int
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+  locationId  Int
+  location    Location  @relation(fields: [locationId], references: [id])
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([locationId, createdAt])
+}
+
+enum InventoryStatus {
+  ACTIVE
+  COMPLETED
+}
+
+model InventorySession {
+  id          Int             @id @default(autoincrement())
+  locationId  Int
+  location    Location        @relation(fields: [locationId], references: [id])
+  userId      Int
+  user        User            @relation(fields: [userId], references: [id])
+  status      InventoryStatus @default(ACTIVE)
+  items       InventoryItem[]
+  createdAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  @@index([locationId])
+  @@index([status])
+}
+
+model InventoryItem {
+  id               Int              @id @default(autoincrement())
+  sessionId        Int
+  session          InventorySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  medicationId     Int
+  medication       Medication       @relation(fields: [medicationId], references: [id])
+  expectedQuantity Int
+  actualQuantity   Int? // null means not scanned yet
+  difference       Int? // actualQuantity - expectedQuantity
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([sessionId])
+  @@index([medicationId])
 }

@@ -16,7 +16,7 @@ export const medicationController = {
         return res.status(400).json({ success: false, error: 'Параметр limit должен быть от 1 до 100' });
       }
 
-      const medications = await medicationService.getAllMedications(barcode, page, limit);
+      const medications = await medicationService.getAllMedications(barcode ? [barcode] : undefined, page, limit);
       res.json(medications);
     } catch (error) {
       next(error);
@@ -51,11 +51,11 @@ export const medicationController = {
       if (!id || !Number.isInteger(id) || id <= 0) {
         return res.status(400).json({ success: false, error: 'Некорректный ID медикамента' });
       }
-      const { barcode } = req.body;
-      if (!barcode || typeof barcode !== 'string' || barcode.trim().length === 0) {
-        return res.status(400).json({ success: false, error: 'Штрихкод обязателен для заполнения' });
+      const { barcodes } = req.body;
+      if (!barcodes || !Array.isArray(barcodes) || barcodes.length === 0) {
+        return res.status(400).json({ success: false, error: 'Список штрихкодов обязателен для заполнения' });
       }
-      const updated = await medicationService.updateMedicationBarcode(id, barcode.trim());
+      const updated = await medicationService.updateMedicationBarcodes(id, barcodes);
       res.json(updated);
     } catch (error) {
       next(error);

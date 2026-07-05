@@ -1,9 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
+
+/* Print Friendly Styles */
+@media print {
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+  
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Скрыть сайдбар, кнопки и навигацию при печати */
+  nav, aside, button, .no-print {
+    display: none !important;
+  }
+
+  /* Развернуть контент на 100% ширины */
+  main, .flex-1 {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Тени и границы убираем для чистого вида */
+  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* Разрывы страниц для карточек */
+  .grid > div {
+    page-break-inside: avoid;
   }
 }

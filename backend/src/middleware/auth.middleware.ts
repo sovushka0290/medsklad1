@@ -43,3 +43,16 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     return res.status(401).json({ success: false, error: 'Недействительный или истёкший токен' });
   }
 };
+
+// Алиас для обратной совместимости (используется в ai.routes, inventory.routes, user.routes)
+export const requireAuth = authMiddleware;
+
+export const roleGuard = (roles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    if (!user || !roles.includes(user.role)) {
+      return res.status(403).json({ success: false, error: 'Недостаточно прав' });
+    }
+    next();
+  };
+};

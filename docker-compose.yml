@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: medsklad
+      POSTGRES_PASSWORD: medsklad_password
+      POSTGRES_DB: medsklad_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medsklad -d medsklad_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://medsklad:medsklad_password@postgres:5432/medsklad_db?schema=public
+      - JWT_SECRET=medsklad_super_secret_key_change_in_prod
+      - JWT_EXPIRES_IN=30m
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npm start"
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+
+  nginx-proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - dashboard
+      - backend
+
+  pg-backup:
+    image: prodrigestivill/postgres-backup-local
+    restart: always
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=medsklad_db
+      - POSTGRES_USER=medsklad
+      - POSTGRES_PASSWORD=medsklad_password
+      - SCHEDULE=@cron 0 2 * * *
+      - BACKUP_KEEP_DAYS=30
+    volumes:
+      - pgbackup:/backups
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+  pgbackup:

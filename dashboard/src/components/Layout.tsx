@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import type { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 
-export default function Layout({ children }: { children: ReactNode }) {
+const Layout = memo(function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
       <Sidebar />
@@ -20,4 +21,6 @@ export default function Layout({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
-}
+});
+
+export default Layout;

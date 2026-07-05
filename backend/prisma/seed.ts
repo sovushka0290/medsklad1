@@ -71,75 +71,75 @@ async function main() {
 
   // Анестетики
   const ultra = await prisma.medication.create({
-    data: { barcode: '2000000000010', name: 'Ультракаин Д-С форте 2мл (анестетик)', minQuantity: 50 },
+    data: { barcodes: [], name: 'Ультракаин Д-С форте 2мл (анестетик)', minQuantity: 50 },
   });
   const lido = await prisma.medication.create({
-    data: { barcode: '2000000000027', name: 'Лидокаин 2% 2мл (анестетик)', minQuantity: 30 },
+    data: { barcodes: [], name: 'Лидокаин 2% 2мл (анестетик)', minQuantity: 30 },
   });
   const sept = await prisma.medication.create({
-    data: { barcode: '2000000000034', name: 'Септанест с адреналином 4% (анестетик)', minQuantity: 40 },
+    data: { barcodes: [], name: 'Септанест с адреналином 4% (анестетик)', minQuantity: 40 },
   });
   const mepi = await prisma.medication.create({
-    data: { barcode: '2000000000041', name: 'Мепивастезин 3% без адреналина', minQuantity: 30 },
+    data: { barcodes: [], name: 'Мепивастезин 3% без адреналина', minQuantity: 30 },
   });
 
   // Пломбировочные материалы (композиты)
   const filtek = await prisma.medication.create({
-    data: { barcode: '2000000000058', name: 'Филтек Z250 композит (Filtek 4г)', minQuantity: 5 },
+    data: { barcodes: [], name: 'Филтек Z250 композит (Filtek 4г)', minQuantity: 5 },
   });
   const estelite = await prisma.medication.create({
-    data: { barcode: '2000000000065', name: 'Эстелайт Сигма Квик шприц 3.8г', minQuantity: 8 },
+    data: { barcodes: [], name: 'Эстелайт Сигма Квик шприц 3.8г', minQuantity: 8 },
   });
   const charisma = await prisma.medication.create({
-    data: { barcode: '2000000000072', name: 'Каризма Классик шприц 4г', minQuantity: 10 },
+    data: { barcodes: [], name: 'Каризма Классик шприц 4г', minQuantity: 10 },
   });
   const herculite = await prisma.medication.create({
-    data: { barcode: '2000000000089', name: 'Геркулайт Ультра шприц 4г', minQuantity: 5 },
+    data: { barcodes: [], name: 'Геркулайт Ультра шприц 4г', minQuantity: 5 },
   });
 
   // Расходники
   const glovesM = await prisma.medication.create({
-    data: { barcode: '2000000000096', name: 'Перчатки нитриловые синие (M)', minQuantity: 20 },
+    data: { barcodes: [], name: 'Перчатки нитриловые синие (M)', minQuantity: 20 },
   });
   const glovesS = await prisma.medication.create({
-    data: { barcode: '2000000000102', name: 'Перчатки нитриловые синие (S)', minQuantity: 20 },
+    data: { barcodes: [], name: 'Перчатки нитриловые синие (S)', minQuantity: 20 },
   });
   const glovesL = await prisma.medication.create({
-    data: { barcode: '2000000000119', name: 'Перчатки латексные опудренные (L)', minQuantity: 20 },
+    data: { barcodes: [], name: 'Перчатки латексные опудренные (L)', minQuantity: 20 },
   });
   const masks = await prisma.medication.create({
-    data: { barcode: '2000000000126', name: 'Маски медицинские трехслойные (пачка)', minQuantity: 100 },
+    data: { barcodes: [], name: 'Маски медицинские трехслойные (пачка)', minQuantity: 100 },
   });
   const cotton = await prisma.medication.create({
-    data: { barcode: '2000000000133', name: 'Ватные валики стоматологические (пачка)', minQuantity: 50 },
+    data: { barcodes: [], name: 'Ватные валики стоматологические (пачка)', minQuantity: 50 },
   });
   const covers = await prisma.medication.create({
-    data: { barcode: '2000000000140', name: 'Бахилы медицинские одноразовые (пачка)', minQuantity: 10 },
+    data: { barcodes: [], name: 'Бахилы медицинские одноразовые (пачка)', minQuantity: 10 },
   });
 
   // Препараты для эндодонтии / лечебные
   const alvogyl = await prisma.medication.create({
-    data: { barcode: '2000000000157', name: 'Альвожиль (Alvogyl) паста 12г', minQuantity: 3 },
+    data: { barcodes: [], name: 'Альвожиль (Alvogyl) паста 12г', minQuantity: 3 },
   });
   const endosolv = await prisma.medication.create({
-    data: { barcode: '2000000000164', name: 'Эндосольв жидкость для распломбировки', minQuantity: 2 },
+    data: { barcodes: [], name: 'Эндосольв жидкость для распломбировки', minQuantity: 2 },
   });
   const gipo = await prisma.medication.create({
-    data: { barcode: '2000000000171', name: 'Гипохлорит натрия 3% раствор 100мл', minQuantity: 15 },
+    data: { barcodes: [], name: 'Гипохлорит натрия 3% раствор 100мл', minQuantity: 15 },
   });
   const cofferdam = await prisma.medication.create({
-    data: { barcode: '2000000000188', name: 'Коффердам жидкий барьер (шприц)', minQuantity: 5 },
+    data: { barcodes: [], name: 'Коффердам жидкий барьер (шприц)', minQuantity: 5 },
   });
 
   // Стоматологические цементы
   const fuji = await prisma.medication.create({
-    data: { barcode: '2000000000195', name: 'Фуджи I (Fuji I) стеклоиономерный цемент', minQuantity: 4 },
+    data: { barcodes: [], name: 'Фуджи I (Fuji I) стеклоиономерный цемент', minQuantity: 4 },
   });
   const adhesor = await prisma.medication.create({
-    data: { barcode: '2000000000201', name: 'Адгезор Карбофайн фосфатный цемент', minQuantity: 5 },
+    data: { barcodes: [], name: 'Адгезор Карбофайн фосфатный цемент', minQuantity: 5 },
   });
   const maxcem = await prisma.medication.create({
-    data: { barcode: '2000000000218', name: 'Максцем Элит (Maxcem Elite) самоадгезивный цемент', minQuantity: 4 },
+    data: { barcodes: [], name: 'Максцем Элит (Maxcem Elite) самоадгезивный цемент', minQuantity: 4 },
   });
 
   console.log('Распределение партий по складам...');

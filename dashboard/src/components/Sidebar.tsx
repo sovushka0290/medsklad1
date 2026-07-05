@@ -1,17 +1,21 @@
+import { memo, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FileUp, LogOut, Package } from 'lucide-react';
 
-export default function Sidebar() {
+const Sidebar = memo(function Sidebar() {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
-  };
+  }, [navigate]);
 
   const navItems = [
-    { name: 'Аналитика', path: '/', icon: LayoutDashboard },
+    { name: 'Обзор', path: '/', icon: LayoutDashboard },
+    { name: 'Склад', path: '/inventory', icon: Package },
+    { name: 'Расход по кабинетам', path: '/procedures', icon: FileUp },
+    { name: 'Отчёты', path: '/reports', icon: FileUp },
     { name: 'Импорт из 1С/Excel', path: '/import', icon: FileUp },
   ];
 
@@ -57,4 +61,6 @@ export default function Sidebar() {
       </div>
     </div>
   );
-}
+});
+
+export default Sidebar;

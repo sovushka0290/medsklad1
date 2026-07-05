@@ -50,18 +50,19 @@ export const importService = {
       try {
         await prisma.$transaction(async (tx) => {
           // Ищем медикамент
-          let medication = await tx.medication.findUnique({
-            where: { barcode }
+          let medication = await tx.medication.findFirst({
+            where: { barcodes: { has: barcode } }
           });
 
           // Создаем если нет
           if (!medication) {
             medication = await tx.medication.create({
               data: {
-                barcode,
                 name,
+                barcodes: [barcode],
                 mnn,
                 group,
+                minQuantity: 10
               }
             });
           } else {

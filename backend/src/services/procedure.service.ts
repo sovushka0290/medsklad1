@@ -84,13 +84,15 @@ export const logProcedure = async (data: {
       });
 
       let remainingToDeduct = norm.expectedQuantity;
+      let currentTotalStock = batches.reduce((sum, b) => sum + b.quantity, 0);
       
       for (const batch of batches) {
         if (remainingToDeduct <= 0) break;
 
         const deductAmount = Math.min(batch.quantity, remainingToDeduct);
-        const quantityBefore = batch.quantity;
+        const quantityBefore = currentTotalStock;
         const quantityAfter = quantityBefore - deductAmount;
+        currentTotalStock = quantityAfter;
 
         // Создаем транзакцию списания
         await tx.transaction.create({
@@ -106,12 +108,13 @@ export const logProcedure = async (data: {
           }
         });
 
-        if (quantityAfter === 0) {
+        const newBatchQuantity = batch.quantity - deductAmount;
+        if (newBatchQuantity === 0) {
           await tx.batch.delete({ where: { id: batch.id } });
         } else {
           await tx.batch.update({
             where: { id: batch.id },
-            data: { quantity: quantityAfter }
+            data: { quantity: newBatchQuantity }
           });
         }
 
@@ -145,53 +148,75 @@ export const getProcedureComparison = async () => {
       norms: {
         include: { medication: { select: { id: true, name: true } } },
       },
-      logs: true,
+      logs: {
+        include: {
+          location: { select: { id: true, name: true } }
+        }
+      },
     },
+  });
+
+  const procedureNames = procedures.map(p => `Списание на процедуру: ${p.name}`);
+  const allTxs = await prisma.transaction.findMany({
+    where: {
+      type: 'OUTFLOW',
+      reason: { in: procedureNames }
+    },
+    select: { locationId: true, reason: true, medicationId: true, quantity: true }
   });
 
   const comparisons = [];
   for (const proc of procedures) {
-    const logsCount = proc.logs.length;
-    
-    // Получаем реальные транзакции (списания по этой процедуре)
-    const txs = await prisma.transaction.findMany({
-      where: {
-        type: 'OUTFLOW',
-        reason: `Списание на процедуру: ${proc.name}`
+    // Group logs by locationId
+    const locationGroups = proc.logs.reduce((acc, log) => {
+      const locId = log.locationId;
+      if (!acc[locId]) {
+        acc[locId] = { locationName: log.location.name, count: 0 };
       }
-    });
-
-    // Агрегируем расход по медикаментам
-    const actualUsageByMed = txs.reduce((acc, tx) => {
-      acc[tx.medicationId] = (acc[tx.medicationId] || 0) + tx.quantity;
+      acc[locId].count += 1;
       return acc;
-    }, {} as Record<number, number>);
+    }, {} as Record<number, { locationName: string; count: number }>);
 
-    const expected = proc.norms.map((norm) => {
-      const expectedTotal = norm.expectedQuantity * logsCount;
-      const minAllowed = expectedTotal * (1 - norm.tolerancePercent / 100);
-      const maxAllowed = expectedTotal * (1 + norm.tolerancePercent / 100);
-      const actualTotal = actualUsageByMed[norm.medicationId] || 0;
-      const isViolation = actualTotal < minAllowed || actualTotal > maxAllowed;
+    for (const locIdStr of Object.keys(locationGroups)) {
+      const locId = Number(locIdStr);
+      const group = locationGroups[locId];
+      const logsCount = group.count;
+      
+      const procTxs = allTxs.filter(tx => tx.locationId === locId && tx.reason === `Списание на процедуру: ${proc.name}`);
 
-      return {
-        medicationId: norm.medicationId,
-        medicationName: norm.medication.name,
-        expectedTotal: Math.round(expectedTotal * 100) / 100,
-        actualTotal,
-        isViolation,
-        minAllowed: Math.round(minAllowed * 100) / 100,
-        maxAllowed: Math.round(maxAllowed * 100) / 100,
-        tolerancePercent: norm.tolerancePercent,
-      };
-    });
+      const actualUsageByMed = procTxs.reduce((acc, tx) => {
+        acc[tx.medicationId] = (acc[tx.medicationId] || 0) + tx.quantity;
+        return acc;
+      }, {} as Record<number, number>);
 
-    comparisons.push({
-      procedureId: proc.id,
-      procedureName: proc.name,
-      timesPerformed: logsCount,
-      usage: expected,
-    });
+      const expected = proc.norms.map((norm) => {
+        const expectedTotal = norm.expectedQuantity * logsCount;
+        const minAllowed = expectedTotal * (1 - norm.tolerancePercent / 100);
+        const maxAllowed = expectedTotal * (1 + norm.tolerancePercent / 100);
+        const actualTotal = actualUsageByMed[norm.medicationId] || 0;
+        const isViolation = actualTotal < minAllowed || actualTotal > maxAllowed;
+
+        return {
+          medicationId: norm.medicationId,
+          medicationName: norm.medication.name,
+          expectedTotal: Math.round(expectedTotal * 100) / 100,
+          actualTotal,
+          isViolation,
+          minAllowed: Math.round(minAllowed * 100) / 100,
+          maxAllowed: Math.round(maxAllowed * 100) / 100,
+          tolerancePercent: norm.tolerancePercent,
+        };
+      });
+
+      comparisons.push({
+        locationId: locId,
+        cabinetName: group.locationName,
+        procedureId: proc.id,
+        procedureName: proc.name,
+        timesPerformed: logsCount,
+        usage: expected,
+      });
+    }
   }
 
   return comparisons;

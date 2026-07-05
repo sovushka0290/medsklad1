@@ -10,12 +10,13 @@ export interface CreateTransactionInput {
   reason?: string;
   expirationDate?: string;
   serialNumber?: string;
+  supplier?: string;
   price?: number;
 }
 
 export const transactionService = {
   async createTransaction(input: CreateTransactionInput) {
-    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, price } = input;
+    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, supplier, price } = input;
 
     if (quantity <= 0) {
       throw new Error('Количество должно быть больше нуля');
@@ -69,6 +70,7 @@ export const transactionService = {
               quantity,
               expirationDate: expDate,
               serialNumber,
+              supplier,
               price
             },
           });
@@ -104,14 +106,54 @@ export const transactionService = {
       }
 
       // Создаем запись транзакции
-      return tx.transaction.create({
+      const txRecord = await tx.transaction.create({
         data: { type, quantity, medicationId, locationId, userId, reason, quantityBefore, quantityAfter },
         include: {
-          medication: { select: { id: true, name: true, barcode: true } },
+          medication: { select: { id: true, name: true, barcodes: true, minQuantity: true } },
           location: { select: { id: true, name: true } },
           user: { select: { id: true, name: true, role: true } }, // Без password!
         },
       });
+
+      // ПУШ-УВЕДОМЛЕНИЕ И EMAIL: Если остаток стал <= minQuantity
+      const minQty = txRecord.medication.minQuantity;
+      if (quantityAfter <= minQty && quantityBefore > minQty) {
+        setImmediate(async () => {
+          try {
+            const { prisma: prismaClient } = require('../lib/prisma');
+            const { sendPushNotification } = require('./push.service');
+            const { emailService } = require('./email.service');
+            
+            const admins = await prismaClient.user.findMany({
+              where: {
+                role: { in: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER'] },
+                isActive: true
+              },
+            });
+            
+            // Push Notification
+            const tokens = admins.map((u: any) => u.pushToken).filter(Boolean);
+            if (tokens.length > 0) {
+              await sendPushNotification(
+                tokens,
+                '⚠️ Критический остаток',
+                `Препарат "${txRecord.medication.name}" заканчивается. Осталось: ${quantityAfter} шт. в локации "${txRecord.location.name}".`
+              );
+            }
+
+            // Email Notification to Managers
+            const managers = admins.filter((u: any) => u.role === 'MANAGER' && u.email);
+            for (const manager of managers) {
+              await emailService.sendCriticalStockAlert(txRecord.medication.name, quantityAfter, minQty, manager.email);
+            }
+
+          } catch (err) {
+            console.error('Failed to send low stock alerts:', err);
+          }
+        });
+      }
+
+      return txRecord;
     });
   },
 
@@ -123,7 +165,7 @@ export const transactionService = {
       prisma.transaction.findMany({
         orderBy: { createdAt: 'desc' },
         include: {
-          medication: { select: { id: true, name: true, barcode: true } },
+          medication: { select: { id: true, name: true, barcodes: true, minQuantity: true } },
           location: { select: { id: true, name: true } },
           user: { select: { id: true, name: true, role: true } }, // Без password!
         },
