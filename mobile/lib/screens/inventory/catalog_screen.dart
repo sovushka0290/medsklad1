@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../inventory_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -45,6 +46,16 @@ class _CatalogScreenState extends State<CatalogScreen> with SingleTickerProvider
       appBar: AppBar(
         title: const Text('Каталог остатков'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.playlist_add_check_rounded),
+            tooltip: 'Инвентаризация',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const InventoryScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadInventory,

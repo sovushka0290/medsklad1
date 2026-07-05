@@ -25,7 +25,7 @@ export const auditMiddleware = async (req: Request, res: Response, next: NextFun
       await prisma.auditLog.create({
         data: {
           userId,
-          ip,
+          ipAddress: ip,
           action,
         },
       });

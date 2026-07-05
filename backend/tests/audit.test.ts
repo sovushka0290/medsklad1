@@ -69,7 +69,7 @@ describe('Audit Log Middleware Tests', () => {
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: 10,
-        ip: '127.0.0.1',
+        ipAddress: '127.0.0.1',
         action: 'GET /api/medications',
       }
     });

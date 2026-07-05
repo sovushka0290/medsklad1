@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, memo } from 'react';
 import { api } from '../api';
 import {
   Package, Search, Plus, ArrowDown, ArrowUp, RotateCcw, Trash2,
-  AlertTriangle, ChevronDown, ChevronUp, X, Loader2, Filter
+  AlertTriangle, ChevronDown, ChevronUp, X, Loader2, Filter,
+  ClipboardList, Play, CheckCircle, RefreshCw, Barcode, ShieldAlert
 } from 'lucide-react';
 
 type TransactionType = 'INCOME' | 'OUTFLOW' | 'RETURN' | 'WRITE_OFF';
@@ -34,6 +35,28 @@ interface Location {
   type: string;
 }
 
+interface InventoryItem {
+  id: number;
+  medicationId: number;
+  medication: { name: string; barcodes: string[]; unit: string | null };
+  expectedQuantity: number;
+  actualQuantity: number | null;
+  difference: number | null;
+}
+
+interface InventorySession {
+  id: number;
+  locationId: number;
+  location: Location;
+  userId: number;
+  user: { id: number; name: string | null };
+  status: 'ACTIVE' | 'COMPLETED';
+  items: InventoryItem[];
+  _count?: { items: number };
+  createdAt: string;
+  completedAt: string | null;
+}
+
 const TX_LABELS: Record<TransactionType, { label: string; color: string; icon: React.ElementType }> = {
   INCOME:    { label: 'Приёмка',   color: 'emerald', icon: ArrowDown },
   OUTFLOW:   { label: 'Выдача',    color: 'blue',    icon: ArrowUp },
@@ -52,6 +75,7 @@ function ExpiryBadge({ date }: { date: string | null }) {
 }
 
 export default memo(function InventoryPage() {
+  const [activeTab, setActiveTab] = useState<'stock' | 'sessions'>('stock');
   const [meds, setMeds] = useState<Medication[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +83,22 @@ export default memo(function InventoryPage() {
   const [groupFilter, setGroupFilter] = useState('');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
+
+  // Inventory Session states
+  const [activeSessions, setActiveSessions] = useState<InventorySession[]>([]);
+  const [historySessions, setHistorySessions] = useState<InventorySession[]>([]);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [expandedSession, setExpandedSession] = useState<number | null>(null);
+  const [showStartSession, setShowStartSession] = useState(false);
+  const [selectedLocId, setSelectedLocId] = useState('');
+  const [startLoading, setStartLoading] = useState(false);
+  const [startError, setStartError] = useState('');
+
+  // Adjust modal states
+  const [showAdjust, setShowAdjust] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({ sessionId: 0, barcode: '', quantityAdjustment: 1 });
+  const [adjustError, setAdjustError] = useState('');
+  const [adjustLoading, setAdjustLoading] = useState(false);
 
   // New Medication modal
   const [showNewMed, setShowNewMed] = useState(false);
@@ -89,7 +129,30 @@ export default memo(function InventoryPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchSessions = useCallback(async () => {
+    setSessionLoading(true);
+    try {
+      const [activeRes, historyRes] = await Promise.all([
+        api.get('/inventory/active'),
+        api.get('/inventory/history'),
+      ]);
+      setActiveSessions(activeRes.data || []);
+      setHistorySessions(historyRes.data || []);
+    } catch (err) {
+      console.error('Failed to fetch inventory sessions', err);
+    } finally {
+      setSessionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'stock') {
+      fetchData();
+    } else {
+      fetchSessions();
+      fetchData(); // Need locations list for new sessions
+    }
+  }, [activeTab, fetchData, fetchSessions]);
 
   const groups = [...new Set(meds.map(m => m.group).filter(Boolean))] as string[];
 
@@ -162,167 +225,480 @@ export default memo(function InventoryPage() {
     }
   };
 
+  const handleStartSession = async () => {
+    if (!selectedLocId) { setStartError('Выберите кабинет'); return; }
+    setStartError('');
+    setStartLoading(true);
+    try {
+      await api.post('/inventory/start', { locationId: Number(selectedLocId) });
+      setShowStartSession(false);
+      setSelectedLocId('');
+      await fetchSessions();
+    } catch (err: any) {
+      setStartError(err.response?.data?.error || 'Не удалось начать инвентаризацию');
+    } finally {
+      setStartLoading(false);
+    }
+  };
+
+  const handleCloseSession = async (id: number) => {
+    if (!window.confirm('Вы уверены, что хотите завершить инвентаризацию? Все неучтенные остатки будут зафиксированы.')) return;
+    try {
+      await api.post(`/inventory/${id}/close`);
+      await fetchSessions();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Ошибка завершения');
+    }
+  };
+
+  const openAdjust = (sessionId: number) => {
+    setAdjustForm({ sessionId, barcode: '', quantityAdjustment: 1 });
+    setAdjustError('');
+    setShowAdjust(true);
+  };
+
+  const submitAdjust = async () => {
+    if (!adjustForm.barcode.trim()) { setAdjustError('Введите штрихкод'); return; }
+    setAdjustLoading(true);
+    setAdjustError('');
+    try {
+      await api.post(`/inventory/${adjustForm.sessionId}/adjust`, {
+        barcode: adjustForm.barcode.trim(),
+        quantityAdjustment: Number(adjustForm.quantityAdjustment),
+      });
+      setShowAdjust(false);
+      await fetchSessions();
+    } catch (err: any) {
+      setAdjustError(err.response?.data?.error || err.message || 'Ошибка корректировки');
+    } finally {
+      setAdjustLoading(false);
+    }
+  };
+
   return (
     <>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Склад</h1>
-          <p className="text-slate-500 text-sm mt-1">Остатки, партии, операции с медикаментами</p>
-        </div>
+      {/* Top Tabs */}
+      <div className="flex border-b border-slate-200 mb-6">
         <button
-          onClick={() => setShowNewMed(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
+          onClick={() => setActiveTab('stock')}
+          className={`px-5 py-3 font-semibold text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'stock'
+              ? 'border-b-2 border-cyan-600 text-cyan-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          Новый медикамент
+          <Package className="w-4 h-4" />
+          Остатки на складе
+        </button>
+        <button
+          onClick={() => setActiveTab('sessions')}
+          className={`px-5 py-3 font-semibold text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'sessions'
+              ? 'border-b-2 border-cyan-600 text-cyan-600'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          Инвентаризация и сессии
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск по названию, МНН, штрихкоду..."
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          />
-        </div>
+      {activeTab === 'stock' ? (
+        <>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Склад</h1>
+              <p className="text-slate-500 text-sm mt-1">Остатки, партии, операции с медикаментами</p>
+            </div>
+            <button
+              onClick={() => setShowNewMed(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Новый медикамент
+            </button>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={groupFilter}
-            onChange={e => setGroupFilter(e.target.value)}
-            className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          >
-            <option value="">Все группы</option>
-            {groups.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </div>
+          {/* Filters */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Поиск по названию, МНН, штрихкоду..."
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showCriticalOnly}
-            onChange={e => setShowCriticalOnly(e.target.checked)}
-            className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-          />
-          <span className="text-sm text-slate-600 flex items-center gap-1">
-            <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Критичные остатки
-          </span>
-        </label>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-slate-400" />
+              <select
+                value={groupFilter}
+                onChange={e => setGroupFilter(e.target.value)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                <option value="">Все группы</option>
+                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
 
-        <span className="ml-auto text-xs text-slate-400">{filtered.length} позиций</span>
-      </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showCriticalOnly}
+                onChange={e => setShowCriticalOnly(e.target.checked)}
+                className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+              />
+              <span className="text-sm text-slate-600 flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Критичные остатки
+              </span>
+            </label>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <Package className="w-16 h-16 mb-4 text-slate-200" />
-          <p>Ничего не найдено</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(med => {
-            const totalStock = med.batches.reduce((s, b) => s + b.quantity, 0);
-            const isCritical = totalStock <= med.minQuantity;
-            const isExp = med.batches.some(b => {
-              if (!b.expirationDate || b.quantity <= 0) return false;
-              return new Date(b.expirationDate).getTime() - Date.now() <= 30 * 86400000;
-            });
-            const isOpen = expanded === med.id;
+            <span className="ml-auto text-xs text-slate-400">{filtered.length} позиций</span>
+          </div>
 
-            return (
-              <div key={med.id} className={`bg-white rounded-2xl shadow-sm border transition-all ${isCritical ? 'border-rose-200' : 'border-slate-100'}`}>
-                {/* Row header */}
-                <div
-                  className="flex items-center px-6 py-4 cursor-pointer hover:bg-slate-50 rounded-2xl transition-colors"
-                  onClick={() => setExpanded(isOpen ? null : med.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-slate-800 truncate">{med.name}</p>
-                      {med.form && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{med.form}</span>}
-                      {med.group && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{med.group}</span>}
-                      {isCritical && <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Критично</span>}
-                      {isExp && <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">⏰ Срок!</span>}
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <Package className="w-16 h-16 mb-4 text-slate-200" />
+              <p>Ничего не найдено</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(med => {
+                const totalStock = med.batches.reduce((s, b) => s + b.quantity, 0);
+                const isCritical = totalStock <= med.minQuantity;
+                const isExp = med.batches.some(b => {
+                  if (!b.expirationDate || b.quantity <= 0) return false;
+                  return new Date(b.expirationDate).getTime() - Date.now() <= 30 * 86400000;
+                });
+                const isOpen = expanded === med.id;
+
+                return (
+                  <div key={med.id} className={`bg-white rounded-2xl shadow-sm border transition-all ${isCritical ? 'border-rose-200' : 'border-slate-100'}`}>
+                    {/* Row header */}
+                    <div
+                      className="flex items-center px-6 py-4 cursor-pointer hover:bg-slate-50 rounded-2xl transition-colors"
+                      onClick={() => setExpanded(isOpen ? null : med.id)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-slate-800 truncate">{med.name}</p>
+                          {med.form && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{med.form}</span>}
+                          {med.group && <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{med.group}</span>}
+                          {isCritical && <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle className="w-3 h-3" />Критично</span>}
+                          {isExp && <span className="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">⏰ Срок!</span>}
+                        </div>
+                        {med.mnn && <p className="text-xs text-slate-400 mt-0.5">МНН: {med.mnn}</p>}
+                        <p className="text-xs text-slate-400 mt-0.5">{med.barcodes.join(', ')}</p>
+                      </div>
+
+                      <div className="flex items-center gap-6 ml-4">
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400">Остаток</p>
+                          <p className={`text-xl font-bold ${isCritical ? 'text-rose-600' : 'text-slate-800'}`}>
+                            {totalStock} <span className="text-sm font-normal text-slate-400">{med.unit || 'шт.'}</span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400">Мин.</p>
+                          <p className="text-sm font-medium text-slate-500">{med.minQuantity}</p>
+                        </div>
+
+                        {/* Quick action buttons */}
+                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                          {(['INCOME', 'OUTFLOW', 'RETURN', 'WRITE_OFF'] as TransactionType[]).map(type => {
+                            const { icon: Icon, color } = TX_LABELS[type];
+                            return (
+                              <button
+                                key={type}
+                                onClick={() => openTx(med, type)}
+                                title={TX_LABELS[type].label}
+                                className={`p-2 rounded-lg text-${color}-600 bg-${color}-50 hover:bg-${color}-100 transition-colors`}
+                              >
+                                <Icon className="w-4 h-4" />
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                      </div>
                     </div>
-                    {med.mnn && <p className="text-xs text-slate-400 mt-0.5">МНН: {med.mnn}</p>}
-                    <p className="text-xs text-slate-400 mt-0.5">{med.barcodes.join(', ')}</p>
-                  </div>
 
-                  <div className="flex items-center gap-6 ml-4">
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400">Остаток</p>
-                      <p className={`text-xl font-bold ${isCritical ? 'text-rose-600' : 'text-slate-800'}`}>
-                        {totalStock} <span className="text-sm font-normal text-slate-400">{med.unit || 'шт.'}</span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400">Мин.</p>
-                      <p className="text-sm font-medium text-slate-500">{med.minQuantity}</p>
-                    </div>
-
-                    {/* Quick action buttons */}
-                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                      {(['INCOME', 'OUTFLOW', 'RETURN', 'WRITE_OFF'] as TransactionType[]).map(type => {
-                        const { icon: Icon, color } = TX_LABELS[type];
-                        return (
-                          <button
-                            key={type}
-                            onClick={() => openTx(med, type)}
-                            title={TX_LABELS[type].label}
-                            className={`p-2 rounded-lg text-${color}-600 bg-${color}-50 hover:bg-${color}-100 transition-colors`}
-                          >
-                            <Icon className="w-4 h-4" />
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                  </div>
-                </div>
-
-                {/* Expanded: batch list */}
-                {isOpen && (
-                  <div className="border-t border-slate-100 px-6 py-4">
-                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Партии</h4>
-                    {med.batches.length === 0 ? (
-                      <p className="text-sm text-slate-400">Нет партий</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {med.batches.map(b => (
-                          <div key={b.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2">
-                            <div className="flex items-center gap-3">
-                              <span className="font-medium text-slate-700">{b.location.name}</span>
-                              {b.supplier && <span className="text-slate-400">{b.supplier}</span>}
-                            </div>
-                            <div className="flex items-center gap-4">
-                              {b.expirationDate && (
-                                <div className="flex items-center gap-1.5">
-                                  <ExpiryBadge date={b.expirationDate} />
-                                  <span className="text-xs text-slate-400">до {new Date(b.expirationDate).toLocaleDateString('ru-RU')}</span>
+                    {/* Expanded: batch list */}
+                    {isOpen && (
+                      <div className="border-t border-slate-100 px-6 py-4">
+                        <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Партии</h4>
+                        {med.batches.length === 0 ? (
+                          <p className="text-sm text-slate-400">Нет партий</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {med.batches.map(b => (
+                              <div key={b.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-medium text-slate-700">{b.location.name}</span>
+                                  {b.supplier && <span className="text-slate-400">{b.supplier}</span>}
                                 </div>
-                              )}
-                              {b.price != null && <span className="text-slate-400">{b.price} ₸</span>}
-                              <span className="font-bold text-slate-800">{b.quantity} {med.unit || 'шт.'}</span>
-                            </div>
+                                <div className="flex items-center gap-4">
+                                  {b.expirationDate && (
+                                    <div className="flex items-center gap-1.5">
+                                      <ExpiryBadge date={b.expirationDate} />
+                                      <span className="text-xs text-slate-400">до {new Date(b.expirationDate).toLocaleDateString('ru-RU')}</span>
+                                    </div>
+                                  )}
+                                  {b.price != null && <span className="text-slate-400">{b.price} ₸</span>}
+                                  <span className="font-bold text-slate-800">{b.quantity} {med.unit || 'шт.'}</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
                     )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Inventory Sessions Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">Инвентаризация</h1>
+              <p className="text-slate-500 text-sm mt-1">Создание и ведение проверок остатков по кабинетам</p>
+            </div>
+            <button
+              onClick={() => setShowStartSession(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
+            >
+              <Play className="w-4 h-4" />
+              Начать проверку (сессию)
+            </button>
+          </div>
+
+          {sessionLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Active Sessions */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                  Активные проверки ({activeSessions.length})
+                </h3>
+                {activeSessions.length === 0 ? (
+                  <div className="bg-slate-50 rounded-2xl p-6 text-center text-slate-500 border border-slate-100">
+                    Нет активных проверок. Создайте новую проверку для пересчета остатков в кабинете.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activeSessions.map(session => {
+                      const isOpen = expandedSession === session.id;
+                      return (
+                        <div key={session.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                          <div
+                            className="flex flex-wrap sm:flex-nowrap justify-between items-center p-6 cursor-pointer hover:bg-slate-50/50"
+                            onClick={() => setExpandedSession(isOpen ? null : session.id)}
+                          >
+                            <div>
+                              <h4 className="font-bold text-slate-800 text-lg">{session.location.name}</h4>
+                              <p className="text-xs text-slate-400 mt-1">Открыл: {session.user.name || 'Сотрудник'} | Дата: {new Date(session.createdAt).toLocaleString('ru-RU')}</p>
+                            </div>
+                            <div className="flex items-center gap-4 mt-4 sm:mt-0" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => openAdjust(session.id)}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                <Barcode className="w-3.5 h-3.5" />
+                                Корректировка
+                              </button>
+                              <button
+                                onClick={() => handleCloseSession(session.id)}
+                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Завершить
+                              </button>
+                              {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                            </div>
+                          </div>
+
+                          {isOpen && (
+                            <div className="border-t border-slate-100 px-6 py-4 bg-slate-50/50">
+                              <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Состояние проверки</h5>
+                              {session.items && session.items.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm text-left">
+                                    <thead>
+                                      <tr className="text-xs text-slate-400 border-b border-slate-200">
+                                        <th className="py-2">Медикамент</th>
+                                        <th className="py-2 text-right">Должно быть</th>
+                                        <th className="py-2 text-right">Фактически</th>
+                                        <th className="py-2 text-right">Разница</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {session.items.map(item => {
+                                        const diff = item.difference || 0;
+                                        return (
+                                          <tr key={item.id}>
+                                            <td className="py-2.5 font-medium text-slate-800">{item.medication?.name || 'Неизвестный'}</td>
+                                            <td className="py-2.5 text-right text-slate-500">{item.expectedQuantity}</td>
+                                            <td className="py-2.5 text-right font-bold text-slate-800">{item.actualQuantity !== null ? item.actualQuantity : '-'}</td>
+                                            <td className={`py-2.5 text-right font-bold ${diff < 0 ? 'text-rose-600' : diff > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                              {diff > 0 ? `+${diff}` : diff}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-slate-400">Нет товаров для сканирования. Отсканируйте первый штрихкод в мобильном приложении.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            );
-          })}
+
+              {/* History Sessions */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-slate-400" />
+                  Завершенные инвентаризации ({historySessions.length})
+                </h3>
+                {historySessions.length === 0 ? (
+                  <div className="bg-slate-50 rounded-2xl p-6 text-center text-slate-400 border border-slate-100">
+                    История пуста.
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-100">
+                    {historySessions.map(session => (
+                      <div key={session.id} className="p-5 flex justify-between items-center hover:bg-slate-50/30">
+                        <div>
+                          <h4 className="font-semibold text-slate-800">{session.location.name}</h4>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Закрыта: {session.completedAt ? new Date(session.completedAt).toLocaleString('ru-RU') : ''} |
+                            Товаров проверено: {session.items?.length || 0}
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 text-xs font-bold text-slate-500 bg-slate-100 rounded-full uppercase">Завершена</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Start Session Modal */}
+      {showStartSession && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-100">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-slate-800">Начать инвентаризацию</h3>
+              <button onClick={() => setShowStartSession(false)} className="text-slate-400 hover:text-slate-600"><X /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Кабинет / Локация *</label>
+                <select
+                  value={selectedLocId}
+                  onChange={e => setSelectedLocId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="">Выберите...</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-1.5">Сессия зафиксирует текущие книжные остатки склада в выбранном кабинете.</p>
+              </div>
+
+              {startError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {startError}
+                </div>
+              )}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => setShowStartSession(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium">
+                Отмена
+              </button>
+              <button onClick={handleStartSession} disabled={startLoading}
+                className="flex-1 px-4 py-2.5 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                {startLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Открыть сессию
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Modal */}
+      {showAdjust && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-100">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-slate-800">Ручная корректировка</h3>
+              <button onClick={() => setShowAdjust(false)} className="text-slate-400 hover:text-slate-600"><X /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Штрихкод медикамента *</label>
+                <input
+                  type="text"
+                  value={adjustForm.barcode}
+                  onChange={e => setAdjustForm(f => ({ ...f, barcode: e.target.value }))}
+                  placeholder="Например, 460123456789"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Изменение количества (+ или -) *</label>
+                <input
+                  type="number"
+                  value={adjustForm.quantityAdjustment}
+                  onChange={e => setAdjustForm(f => ({ ...f, quantityAdjustment: Number(e.target.value) }))}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <p className="text-xs text-slate-400 mt-1.5">Введите положительное число для добавления (излишек) или отрицательное для уменьшения (недостача).</p>
+              </div>
+
+              {adjustError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {adjustError}
+                </div>
+              )}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => setShowAdjust(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium">
+                Отмена
+              </button>
+              <button onClick={submitAdjust} disabled={adjustLoading}
+                className="flex-1 px-4 py-2.5 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
+                {adjustLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Применить
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

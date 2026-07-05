@@ -42,7 +42,7 @@ export const getAuditLogs = async (req: Request, res: Response) => {
 
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
-        orderBy: { timestamp: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),

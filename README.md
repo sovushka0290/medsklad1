@@ -58,3 +58,22 @@
 - `storekeeper@medsklad.kz` — Кладовщик
 - `nurse@medsklad.kz` — Медсестра
 Пароль по умолчанию для всех: `password123`.
+
+## API Endpoints
+
+| Метод | Путь | Описание | Роли | Параметры / Тело |
+|---|---|---|---|---|
+| **POST** | `/api/auth/login` | Вход в систему | Все | `{ email, password }` |
+| **POST** | `/api/auth/refresh` | Обновление пары JWT токенов | Все | `{ refreshToken }` |
+| **GET** | `/api/medications` | Список медикаментов | Все | `page`, `limit`, `barcode` |
+| **POST** | `/api/medications` | Создать новый медикамент | `ADMIN`, `STOREKEEPER` | `{ name, mnn, form, unit, group, minQuantity, barcodes }` |
+| **POST** | `/api/medication/scan` | Сканировать медикамент по штрихкоду | Все | `{ barcode }` |
+| **POST** | `/api/inventory/start` | Начать сессию инвентаризации | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | `{ locationId }` |
+| **GET** | `/api/inventory/active` | Список активных сессий | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE`, `MANAGER` | - |
+| **GET** | `/api/inventory/history` | История завершённых сессий | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | - |
+| **PUT** | `/api/inventory/:id/scan` | Добавить скан в инвентаризацию | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | `{ barcode, quantityToAdd }` |
+| **POST** | `/api/inventory/:id/close` | Закрыть сессию инвентаризации | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | - |
+| **POST** | `/api/inventory/:id/adjust` | Корректировка количества позиции | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | `{ barcode, quantityAdjustment }` |
+| **GET** | `/api/procedures/comparison` | Сравнение расхода Факт/Норма | `ADMIN`, `HEAD_NURSE` | - |
+| **GET** | `/api/dashboard/metrics` | Статистика склада с фильтром по датам | `ADMIN`, `MANAGER`, `HEAD_NURSE`, `STOREKEEPER` | `filter`, `startDate`, `endDate` |
+

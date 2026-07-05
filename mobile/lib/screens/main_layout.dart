@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'inventory/catalog_screen.dart';
 import 'inventory/operation_screen.dart';
+import 'procedure_screen.dart';
 import '../main.dart'; // import themeNotifier
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +18,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   String _userRole = 'USER';
   bool _isLoading = true;
-
+ 
   @override
   void initState() {
     super.initState();
@@ -44,7 +45,7 @@ class _MainLayoutState extends State<MainLayout> {
       const HomeScreen(),
       const CatalogScreen(),
       if (canManageInventory) const OperationScreen(),
-      const Center(child: Text('Процедуры')), // Stub
+      const ProcedureScreen(),
       Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -74,6 +74,37 @@ class ApiService {
     });
   }
 
+  Future<Response> fetchDashboardMetrics(String filter, {String? startDate, String? endDate}) async {
+    String path = '/dashboard/metrics?filter=$filter';
+    if (startDate != null && endDate != null) {
+      path += '&startDate=$startDate&endDate=$endDate';
+    }
+    return await dio.get(path);
+  }
+
+  Future<Response> createMedication(Map<String, dynamic> data) async {
+    return await dio.post('/medications', data: data);
+  }
+
+  Future<Response> startInventory(int locationId) async {
+    return await dio.post('/inventory/start', data: {'locationId': locationId});
+  }
+
+  Future<Response> closeInventory(int sessionId) async {
+    return await dio.post('/inventory/$sessionId/close');
+  }
+
+  Future<Response> adjustItemQuantity(int sessionId, String barcode, int quantityAdjustment) async {
+    return await dio.post('/inventory/$sessionId/adjust', data: {
+      'barcode': barcode,
+      'quantityAdjustment': quantityAdjustment,
+    });
+  }
+
+  Future<Response> getProceduresComparison() async {
+    return await dio.get('/procedures/comparison');
+  }
+
   static Future<Response> get(String path) async {
     return await ApiService().dio.get(path);
   }

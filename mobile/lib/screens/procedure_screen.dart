@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../services/api_service.dart';
-import '../../services/offline_queue.dart';
+import '../services/api_service.dart';
+import '../services/offline_queue.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ProcedureScreen extends StatefulWidget {

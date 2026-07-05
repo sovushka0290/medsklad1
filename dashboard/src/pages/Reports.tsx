@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, memo } from 'react';
 import { api } from '../api';
 import {
   FileSpreadsheet, ArrowDown, ArrowUp, RotateCcw, Trash2,
-  Calendar, Download, Loader2, ShieldCheck, History, AlertTriangle, AlertCircle
+  Calendar, Download, Loader2, ShieldCheck, History, AlertTriangle, AlertCircle,
+  Package, DollarSign, Activity, AlertOctagon, TrendingUp
 } from 'lucide-react';
 
 interface Transaction {
@@ -21,9 +22,9 @@ interface Transaction {
 interface AuditLog {
   id: number;
   userId: number | null;
-  ip: string | null;
+  ipAddress: string | null;
   action: string;
-  timestamp: string;
+  createdAt: string;
 }
 
 const TX_LABELS = {
@@ -36,9 +37,15 @@ const TX_LABELS = {
 export default memo(function ReportsPage() {
   const [txHistory, setTxHistory] = useState<Transaction[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'transactions' | 'audit'>('transactions');
   const [exporting, setExporting] = useState(false);
+
+  // Date filter state
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'custom'>('week');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // Pagination for transactions
   const [txPage, setTxPage] = useState(1);
@@ -84,26 +91,36 @@ export default memo(function ReportsPage() {
     }
   }, []);
 
+  const fetchMetrics = useCallback(async () => {
+    try {
+      let url = `/dashboard/metrics?filter=${dateFilter}`;
+      if (dateFilter === 'custom') {
+        if (!startDate || !endDate) return; // Wait for both dates
+        url = `/dashboard/metrics?filter=custom&startDate=${startDate}&endDate=${endDate}`;
+      }
+      const res = await api.get(url);
+      setMetrics(res.data);
+    } catch (err) {
+      console.error('Failed to fetch report metrics', err);
+    }
+  }, [dateFilter, startDate, endDate]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     checkUserRole();
-    await fetchTransactions(txPage);
+    await Promise.all([
+      fetchTransactions(txPage),
+      fetchMetrics()
+    ]);
     if (isAdminOrHeadNurse) {
       await fetchAuditLogs(auditPage);
     }
     setLoading(false);
-  }, [txPage, auditPage, isAdminOrHeadNurse, fetchTransactions, fetchAuditLogs, checkUserRole]);
+  }, [txPage, auditPage, isAdminOrHeadNurse, fetchTransactions, fetchAuditLogs, fetchMetrics, checkUserRole]);
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
-
-  // Lazy load tab logs
-  useEffect(() => {
-    if (activeTab === 'audit' && isAdminOrHeadNurse && auditLogs.length === 0) {
-      fetchAuditLogs(auditPage);
-    }
-  }, [activeTab, isAdminOrHeadNurse, auditLogs.length, fetchAuditLogs, auditPage]);
+  }, [txPage, auditPage, dateFilter, startDate, endDate]);
 
   const handleExport = useCallback(async (type: string, format: string) => {
     setExporting(true);
@@ -131,6 +148,80 @@ export default memo(function ReportsPage() {
           <h1 className="text-2xl font-bold text-slate-800">Журналы и Отчеты</h1>
           <p className="text-slate-500 text-sm mt-1">Экспорт остатков, история складских операций, аудит безопасности</p>
         </div>
+      </div>
+
+      {/* Date Filter & Metrics Summary Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-cyan-600" />
+            Статистика за период
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value as any)}
+              className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              <option value="today">Сегодня</option>
+              <option value="week">За неделю</option>
+              <option value="month">За месяц</option>
+              <option value="custom">Указать даты...</option>
+            </select>
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <span className="text-slate-400">-</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {metrics ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4">
+              <div className="p-3 bg-cyan-100 rounded-xl"><Package className="w-6 h-6 text-cyan-700" /></div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Всего запасов</p>
+                <p className="text-xl font-bold text-slate-800">{metrics.overview?.totalItemsInStock || 0} шт.</p>
+              </div>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4">
+              <div className="p-3 bg-emerald-100 rounded-xl"><DollarSign className="w-6 h-6 text-emerald-700" /></div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Стоимость запасов</p>
+                <p className="text-xl font-bold text-slate-800">{metrics.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
+              </div>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4">
+              <div className="p-3 bg-rose-100 rounded-xl"><AlertOctagon className="w-6 h-6 text-rose-700" /></div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Критичные остатки</p>
+                <p className="text-xl font-bold text-rose-600">{metrics.overview?.criticalItemsCount || 0}</p>
+              </div>
+            </div>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center gap-4">
+              <div className="p-3 bg-purple-100 rounded-xl"><Activity className="w-6 h-6 text-purple-700" /></div>
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Уникальных позиций</p>
+                <p className="text-xl font-bold text-slate-800">{metrics.overview?.totalUniqueMedications || 0}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-slate-400">Выберите диапазон дат для загрузки метрик</div>
+        )}
       </div>
 
       {/* Quick Export Panel */}
@@ -322,9 +413,9 @@ export default memo(function ReportsPage() {
                       <td className="px-6 py-4 text-xs font-semibold text-slate-800 max-w-md truncate" title={log.action}>
                         {log.action}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{log.ip || 'unknown'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">{log.ipAddress || 'unknown'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-sans">
-                        {new Date(log.timestamp).toLocaleString('ru-RU')}
+                        {new Date(log.createdAt).toLocaleString('ru-RU')}
                       </td>
                     </tr>
                   ))

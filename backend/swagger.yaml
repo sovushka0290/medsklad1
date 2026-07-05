@@ -1,0 +1,290 @@
+openapi: 3.0.0
+info:
+  title: MedSklad API
+  description: API документация для информационной системы автоматизации склада "МедСклад"
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Локальный сервер разработки
+paths:
+  /auth/login:
+    post:
+      summary: Вход в систему
+      description: Авторизация пользователя с возвратом accessToken и refreshToken.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@medsklad.kz
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    description: JWT access token (действителен 30 минут)
+                  refreshToken:
+                    type: string
+                    description: JWT refresh token (действителен 7 дней)
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      email:
+                        type: string
+                      role:
+                        type: string
+
+  /auth/refresh:
+    post:
+      summary: Обновление access-токена
+      description: Выпуск новой пары access и refresh токенов по валидному рефреш-токену.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Токены обновлены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+
+  /medications:
+    get:
+      summary: Получить список медикаментов
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: barcode
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешно
+    post:
+      summary: Создать новый медикамент
+      x-role-guard: ['ADMIN', 'STOREKEEPER']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - barcodes
+              properties:
+                name:
+                  type: string
+                mnn:
+                  type: string
+                form:
+                  type: string
+                unit:
+                  type: string
+                group:
+                  type: string
+                minQuantity:
+                  type: integer
+                barcodes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Создано
+
+  /medication/scan:
+    post:
+      summary: Поиск медикамента по штрихкоду
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - barcode
+              properties:
+                barcode:
+                  type: string
+      responses:
+        '200':
+          description: Найдено
+
+  /inventory/start:
+    post:
+      summary: Начать инвентаризационную сессию
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - locationId
+              properties:
+                locationId:
+                  type: integer
+      responses:
+        '201':
+          description: Сессия запущена
+
+  /inventory/active:
+    get:
+      summary: Получить список активных сессий инвентаризации
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE', 'MANAGER']
+      responses:
+        '200':
+          description: Успешно
+
+  /inventory/history:
+    get:
+      summary: Получить историю инвентаризаций
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      responses:
+        '200':
+          description: Успешно
+
+  /inventory/{id}/scan:
+    put:
+      summary: Добавить сканированный предмет в сессию
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - barcode
+              properties:
+                barcode:
+                  type: string
+                quantityToAdd:
+                  type: integer
+      responses:
+        '200':
+          description: Обновлено
+
+  /inventory/{id}/close:
+    post:
+      summary: Закрыть/завершить сессию инвентаризации
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Закрыто
+
+  /inventory/{id}/adjust:
+    post:
+      summary: Ручная корректировка количества в инвентаризации
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - barcode
+                - quantityAdjustment
+              properties:
+                barcode:
+                  type: string
+                quantityAdjustment:
+                  type: integer
+      responses:
+        '200':
+          description: Скорректировано
+
+  /procedures/comparison:
+    get:
+      summary: Сравнение расхода медикаментов факт/норма по кабинетам
+      x-role-guard: ['ADMIN', 'HEAD_NURSE']
+      responses:
+        '200':
+          description: Успешно
+
+  /dashboard/metrics:
+    get:
+      summary: Метрики для обзорной панели
+      x-role-guard: ['ADMIN', 'MANAGER', 'HEAD_NURSE', 'STOREKEEPER']
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [today, week, month]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешно
