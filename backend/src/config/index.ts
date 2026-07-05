@@ -8,9 +8,9 @@ const jwtRefreshSecret = process.env.REFRESH_TOKEN_SECRET || jwtSecret + '_refre
 
 export const config = {
   port: process.env.PORT || 3000,
-  jwtSecret: process.env.JWT_SECRET || 'medsklad_default_secret_change_in_prod_2026',
+  jwtSecret,
   jwtExpiresIn: '30m',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'medsklad_refresh_secret_2026',
+  jwtRefreshSecret,
   jwtRefreshExpiresIn: '7d',
   saltRounds: 12,
   apiKey: process.env.API_KEY, // Без fallback! Если не задан — API-ключ не работает

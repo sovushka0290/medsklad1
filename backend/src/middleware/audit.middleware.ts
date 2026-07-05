@@ -27,6 +27,7 @@ export const auditMiddleware = async (req: Request, res: Response, next: NextFun
           userId,
           ipAddress: ip,
           action,
+          endpoint: req.originalUrl || req.url,
         },
       });
     } catch (error) {

@@ -1,0 +1,223 @@
+openapi: 3.0.0
+info:
+  title: MedSklad API
+  version: 1.0.0
+  description: API documentation for MedSklad Inventory Management System
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    Medication:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        unit:
+          type: string
+        minQuantity:
+          type: number
+        isCritical:
+          type: boolean
+        barcodes:
+          type: array
+          items:
+            type: string
+
+    InventorySession:
+      type: object
+      properties:
+        id:
+          type: integer
+        locationId:
+          type: integer
+        userId:
+          type: integer
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED]
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: User login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                      refreshToken:
+                        type: string
+                      user:
+                        type: object
+
+  /medications:
+    post:
+      summary: Create new medication
+      x-role-guard: ['ADMIN', 'STOREKEEPER']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                unit:
+                  type: string
+                minQuantity:
+                  type: number
+                barcodes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Medication created
+
+  /inventory/start:
+    post:
+      summary: Start a new inventory session
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locationId:
+                  type: integer
+      responses:
+        '201':
+          description: Session created
+
+  /inventory/active:
+    get:
+      summary: Get active inventory sessions
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE', 'MANAGER']
+      responses:
+        '200':
+          description: List of active sessions
+
+  /inventory/history:
+    get:
+      summary: Get completed inventory sessions
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE', 'MANAGER']
+      responses:
+        '200':
+          description: List of completed sessions
+
+  /inventory/{id}/scan:
+    put:
+      summary: Scan item during inventory
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode:
+                  type: string
+                quantityToAdd:
+                  type: number
+      responses:
+        '200':
+          description: Item scanned and quantity updated
+
+  /inventory/{id}/adjust:
+    put:
+      summary: Adjust item quantity
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                barcode:
+                  type: string
+                quantityAdjustment:
+                  type: number
+      responses:
+        '200':
+          description: Item adjusted
+
+  /inventory/{id}/close:
+    post:
+      summary: Close inventory session
+      x-role-guard: ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Session closed successfully
+
+  /dashboard:
+    get:
+      summary: Get dashboard metrics
+      x-role-guard: ['ADMIN', 'MANAGER']
+      parameters:
+        - in: query
+          name: filter
+          schema:
+            type: string
+            enum: [today, week, month]
+      responses:
+        '200':
+          description: Dashboard metrics

@@ -3,8 +3,13 @@ import NodeCache from 'node-cache';
 
 const dashboardCache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
+<<<<<<< HEAD
 export const getDashboardMetrics = async (filter?: string, startDate?: string, endDate?: string) => {
   const cacheKey = `dashboard_metrics_${filter || 'week'}_${startDate || ''}_${endDate || ''}`;
+=======
+export const getDashboardMetrics = async (filter?: string) => {
+  const cacheKey = `dashboard_metrics_${filter || 'week'}`;
+>>>>>>> c3ab6ea257cdd60b4926c44388ac86496362e606
   const cached = dashboardCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -15,26 +20,20 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
   let dateFrom: Date;
   let dateTo: Date = now;
 
-  if (startDate && endDate) {
-    dateFrom = new Date(startDate);
-    dateTo = new Date(endDate);
-    dateTo.setHours(23, 59, 59, 999);
-  } else {
-    switch (filter) {
-      case 'today':
-        dateFrom = new Date(now);
-        dateFrom.setHours(0, 0, 0, 0);
-        break;
-      case 'month':
-        dateFrom = new Date(now);
-        dateFrom.setDate(now.getDate() - 30);
-        break;
-      case 'week':
-      default:
-        dateFrom = new Date(now);
-        dateFrom.setDate(now.getDate() - 7);
-        break;
-    }
+  switch (filter) {
+    case 'today':
+      dateFrom = new Date(now);
+      dateFrom.setHours(0, 0, 0, 0);
+      break;
+    case 'month':
+      dateFrom = new Date(now);
+      dateFrom.setDate(now.getDate() - 30);
+      break;
+    case 'week':
+    default:
+      dateFrom = new Date(now);
+      dateFrom.setDate(now.getDate() - 7);
+      break;
   }
 
   // Параллельные запросы для скорости
@@ -70,11 +69,18 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
       SELECT DATE(t."createdAt") as date, CAST(SUM(t."quantity") AS FLOAT) as total
       FROM "Transaction" t
       WHERE t.type IN ('OUTFLOW', 'WRITE_OFF')
+<<<<<<< HEAD
         AND t."createdAt" >= ${dateFrom}
         AND t."createdAt" <= ${dateTo}
       GROUP BY DATE(t."createdAt")
       ORDER BY DATE(t."createdAt") ASC;
     `,
+=======
+        AND t."createdAt" >= $1 AND t."createdAt" <= $2
+      GROUP BY DATE(t."createdAt")
+      ORDER BY DATE(t."createdAt") ASC;
+    `, dateFrom, dateTo),
+>>>>>>> c3ab6ea257cdd60b4926c44388ac86496362e606
   ]);
 
   // Подсчёт по медикаментам

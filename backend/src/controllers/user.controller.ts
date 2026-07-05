@@ -22,7 +22,7 @@ export const updatePushToken = async (req: Request, res: Response) => {
 
     res.json({ message: 'Токен обновлен', user: { id: updatedUser.id, pushToken: updatedUser.pushToken } });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 };
 
@@ -60,7 +60,7 @@ export const getAuditLogs = async (req: Request, res: Response) => {
       }
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 };
 
