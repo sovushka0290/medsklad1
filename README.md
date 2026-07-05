@@ -1,60 +1,48 @@
-# MedSklad 💊
+# MedSklad Inventory Management System
 
-Система управления медицинским складом с поддержкой ИИ, ролевой моделью и мобильным приложением.
+MedSklad — это современная система управления медицинским складом с интеграцией штрих-кодов, аналитикой и строгим контролем ролей (RBAC).
 
-## Архитектура
-Проект состоит из трех основных частей:
-- **Backend**: Node.js + Express + TypeScript + Prisma + PostgreSQL
-- **Web Dashboard**: React + Vite + TailwindCSS + Recharts
-- **Mobile App**: React Native (Expo) + NativeWind + React Navigation
+## Запуск проекта
 
-## Запуск проекта локально (Docker)
+### Backend (Express + Prisma)
+```bash
+cd backend
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+```
 
-Для быстрого старта бэкенда и дашборда мы используем `docker-compose`.
+### Dashboard (React + Vite)
+```bash
+cd dashboard
+npm install
+npm run dev
+```
 
-1. Убедитесь, что установлен [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-2. В корневой папке проекта выполните команду:
-   ```bash
-   docker-compose up -d --build
-   ```
-3. Сервисы будут доступны по следующим адресам:
-   - **Dashboard**: `http://localhost`
-   - **Backend API**: `http://localhost/api`
-   - **Postgres**: `localhost:5432`
+### Mobile (Flutter)
+```bash
+cd mobile
+flutter pub get
+flutter run
+```
 
-## Запуск мобильного приложения
+## API Endpoints
 
-Мобильное приложение (клиент для медсестер и кладовщиков) запускается через Expo.
+Ниже приведена таблица основных эндпоинтов. Подробное описание всех методов, параметров и ответов доступно в файле `swagger.yaml`.
 
-1. Перейдите в папку `mobile`:
-   ```bash
-   cd mobile
-   ```
-2. Установите зависимости:
-   ```bash
-   npm install
-   ```
-3. Запустите приложение:
-   ```bash
-   npx expo start
-   ```
-4. Для тестирования на телефоне используйте приложение Expo Go (iOS/Android), отсканировав QR-код.
-   *Примечание: убедитесь, что телефон находится в той же локальной сети, что и компьютер.*
-   
-*Для указания другого API URL можно задать переменную окружения `EXPO_PUBLIC_API_URL`, например в файле `.env` в папке `mobile`.*
+| Endpoint | Метод | Описание | Роли (x-role-guard) |
+|----------|-------|----------|---------------------|
+| `/api/auth/login` | POST | Авторизация пользователя | Все |
+| `/api/auth/refresh` | POST | Обновление токена | Все |
+| `/api/medications` | POST | Создание нового медикамента | ADMIN, STOREKEEPER |
+| `/api/inventory/start` | POST | Начать сессию инвентаризации | ADMIN, STOREKEEPER, HEAD_NURSE |
+| `/api/inventory/active` | GET | Получить активные сессии | ADMIN, STOREKEEPER, HEAD_NURSE, MANAGER |
+| `/api/inventory/history` | GET | Получить закрытые сессии | ADMIN, STOREKEEPER, HEAD_NURSE, MANAGER |
+| `/api/inventory/:id/scan` | PUT | Сканировать товар (добавить кол-во) | ADMIN, STOREKEEPER, HEAD_NURSE |
+| `/api/inventory/:id/adjust` | PUT | Корректировка количества товара | ADMIN, STOREKEEPER, HEAD_NURSE |
+| `/api/inventory/:id/close` | POST | Закрыть сессию инвентаризации | ADMIN, STOREKEEPER, HEAD_NURSE |
+| `/api/procedures/comparison` | GET | Сравнение расхода и норм процедур | ADMIN, MANAGER, HEAD_NURSE |
+| `/api/dashboard` | GET | Ключевые метрики (?filter=today/week/month) | ADMIN, MANAGER |
 
-## Ключевые возможности
-- **Инвентаризация и сканирование штрихкодов**
-- **ИИ-распознавание медикаментов**
-- **Отслеживание критических остатков (Push-уведомления)**
-- **Экспорт отчетов в Excel**
-- **Контроль факта/норматива (ГОСТ)**
-- **Динамика расхода (графики)**
-
-## Ролевая модель (Пользователи для тестов)
-В системе предусмотрено 4 роли:
-- `admin@medsklad.kz` — Администратор
-- `headnurse@medsklad.kz` — Старшая медсестра
-- `storekeeper@medsklad.kz` — Кладовщик
-- `nurse@medsklad.kz` — Медсестра
-Пароль по умолчанию для всех: `password123`.
+Для тестирования API можно использовать импорт `swagger.yaml` в Postman или Swagger UI.

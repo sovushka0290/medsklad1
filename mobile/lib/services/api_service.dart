@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'offline_queue.dart';
 
 class ApiService {
@@ -11,16 +11,18 @@ class ApiService {
   }
 
   ApiService._internal() {
+    // Используем константу или env переменную для URL (10.0.2.2 для Android эмулятора)
+    const String baseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:3000/api');
     dio = Dio(BaseOptions(
-      baseUrl: 'http://10.0.2.2:3000/api', // Android Emulator to localhost
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ));
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('token');
+        final storage = const FlutterSecureStorage();
+        final token = await storage.read(key: 'token');
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -80,5 +82,33 @@ class ApiService {
 
   static Future<Response> post(String path, dynamic data) async {
     return await ApiService().dio.post(path, data: data);
+  }
+
+  // --- New Methods ---
+  Future<Response> fetchDashboardMetrics(String filter) async {
+    return await dio.get('/dashboard', queryParameters: {'filter': filter});
+  }
+
+  Future<Response> createMedication(Map<String, dynamic> medicationData) async {
+    return await dio.post('/medications', data: medicationData);
+  }
+
+  Future<Response> startInventory(int locationId) async {
+    return await dio.post('/inventory/start', data: {'locationId': locationId});
+  }
+
+  Future<Response> closeInventory(int sessionId) async {
+    return await dio.post('/inventory/$sessionId/close');
+  }
+
+  Future<Response> adjustItemQuantity(int sessionId, String barcode, int adjustment) async {
+    return await dio.put('/inventory/$sessionId/adjust', data: {
+      'barcode': barcode,
+      'quantityAdjustment': adjustment,
+    });
+  }
+
+  Future<Response> getProceduresComparison() async {
+    return await dio.get('/procedures/comparison');
   }
 }

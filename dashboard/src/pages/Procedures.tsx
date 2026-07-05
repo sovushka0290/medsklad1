@@ -74,7 +74,7 @@ export default memo(function ProceduresPage() {
       const [procRes, locRes, compRes] = await Promise.all([
         api.get('/procedures'),
         api.get('/locations'),
-        api.get('/procedures/compare'),
+        api.get('/procedures/comparison'),
       ]);
       setProcedures(procRes.data?.data || []);
       setLocations(locRes.data || []);
