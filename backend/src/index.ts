@@ -14,7 +14,7 @@ import medicationRoutes from './routes/medication.routes';
 import transactionRoutes from './routes/transaction.routes';
 import procedureRoutes from './routes/procedure.routes';
 import dashboardRoutes from './routes/dashboard.routes';
-import { auditLog } from './middleware/audit';
+// auditLog удалён — используем только auditMiddleware
 import importRoutes from './routes/import.routes';
 import exportRoutes from './routes/export.routes';
 import aiRoutes from './routes/ai.routes';
@@ -28,11 +28,8 @@ const app = express();
 // Performance Optimization
 app.use(compression());
 
-// Базовые Middleware
-app.use(express.json());
-
-// Глобальное логирование действий (кроме GET запросов по умолчанию)
-app.use(auditLog());
+// Базовые Middleware (лимит 10kb для защиты от oversized payload)
+app.use(express.json({ limit: '10kb' }));
 
 // Security Middlewares
 app.use(helmet({
@@ -40,7 +37,6 @@ app.use(helmet({
   hsts: { maxAge: 31536000, includeSubDomains: true },
 }));
 app.use(cors({ origin: config.cors.origin }));
-app.use(express.json({ limit: '10kb' }));
 app.use(hpp());
 // 🔐 SECURITY: Morgan только в режиме development (в prod используем 'combined')
 if (process.env.NODE_ENV !== 'production') {
