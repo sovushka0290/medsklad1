@@ -1,9 +1,31 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileUp, LogOut, Package } from 'lucide-react';
+import {
+  LayoutDashboard, FileUp, LogOut, Package,
+  FileSpreadsheet, Activity, ShieldAlert
+} from 'lucide-react';
+
+interface User {
+  id: number;
+  email: string;
+  role: 'ADMIN' | 'HEAD_NURSE' | 'STOREKEEPER' | 'NURSE' | 'MANAGER';
+  name: string | null;
+}
 
 const Sidebar = memo(function Sidebar() {
   const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        setUser(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to parse user data from localStorage', e);
+    }
+  }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
@@ -11,13 +33,19 @@ const Sidebar = memo(function Sidebar() {
     navigate('/login');
   }, [navigate]);
 
-  const navItems = [
-    { name: 'Обзор', path: '/', icon: LayoutDashboard },
-    { name: 'Склад', path: '/inventory', icon: Package },
-    { name: 'Расход по кабинетам', path: '/procedures', icon: FileUp },
-    { name: 'Отчёты', path: '/reports', icon: FileUp },
-    { name: 'Импорт из 1С/Excel', path: '/import', icon: FileUp },
+  const allItems = [
+    { name: 'Обзор', path: '/', icon: LayoutDashboard, roles: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER'] },
+    { name: 'Склад', path: '/inventory', icon: Package, roles: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE', 'MANAGER'] },
+    { name: 'Расход по кабинетам', path: '/procedures', icon: Activity, roles: ['ADMIN', 'HEAD_NURSE', 'NURSE', 'MANAGER'] },
+    { name: 'Отчёты и логи', path: '/reports', icon: FileSpreadsheet, roles: ['ADMIN', 'HEAD_NURSE', 'MANAGER'] },
+    { name: 'Импорт из 1С/Excel', path: '/import', icon: FileUp, roles: ['ADMIN', 'STOREKEEPER'] },
   ];
+
+  // Filter items based on user role
+  const navItems = allItems.filter(item => {
+    if (!user) return false;
+    return item.roles.includes(user.role);
+  });
 
   return (
     <div className="w-64 bg-slate-900 min-h-screen flex flex-col text-white transition-all duration-300">
@@ -49,6 +77,13 @@ const Sidebar = memo(function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {user && (
+        <div className="px-6 py-3 border-t border-slate-800/60 bg-slate-950/40 text-xs text-slate-400">
+          <p className="font-semibold text-slate-300 truncate">{user.name || user.email}</p>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-500 font-bold mt-0.5">{user.role}</p>
+        </div>
+      )}
 
       <div className="p-4 border-t border-slate-800">
         <button

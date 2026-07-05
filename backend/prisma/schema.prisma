@@ -187,3 +187,13 @@ model InventoryItem {
   @@index([sessionId])
   @@index([medicationId])
 }
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  ip        String?
+  action    String
+  timestamp DateTime @default(now())
+
+  @@map("audit_log")
+}

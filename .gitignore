@@ -44,3 +44,14 @@ Thumbs.db
 scratch/
 ts.txt
 tz.txt
+
+# 🔐 SECURITY: SSL private keys MUST NOT be committed
+ssl/server.key
+ssl/server.crt
+ssl/*.pem
+ssl/*.key
+
+# 🔐 SECURITY: Docker secrets and production env
+secrets/
+.env.production
+backend/.env.production

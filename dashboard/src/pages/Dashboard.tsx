@@ -27,8 +27,9 @@ const Dashboard = memo(function Dashboard() {
 
         const [dashRes, procRes] = await Promise.all([
           api.get(`/dashboard/metrics${query}`),
-          api.get('/procedures/comparison') // Maybe this needs dates too, but TZ didn't specify. Assuming global for now.
+          api.get('/procedures/compare') // FIX: was /procedures/comparison (wrong URL)
         ]);
+
         setData(dashRes.data);
         
         // Transform procedure comparison data for BarChart (grouped by Cabinet)

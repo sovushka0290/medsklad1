@@ -15,9 +15,14 @@ export const authController = {
         return res.status(401).json({ success: false, error: 'Неверный email или пароль' });
       }
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      // 🔐 SECURITY: Всегда вычисляем bcrypt.compare для защиты от timing attack
+      // (время ответа одинаковое независимо от того, найден пользователь или нет)
+      const dummyHash = '$2b$12$SECURITY_DUMMY_HASH_prevent_timing_attack_medsklad';
+      const isPasswordValid = user
+        ? await bcrypt.compare(password, user.password)
+        : await bcrypt.compare(password, dummyHash);
 
-      if (!isPasswordValid) {
+      if (!user || !isPasswordValid) {
         return res.status(401).json({ success: false, error: 'Неверный email или пароль' });
       }
 
@@ -26,10 +31,17 @@ export const authController = {
         expiresIn: config.jwtExpiresIn as string,
       } as jwt.SignOptions);
 
+      const refreshToken = jwt.sign(
+        { id: user.id },
+        config.jwtRefreshSecret,
+        { expiresIn: '7d' }
+      );
+
       res.json({
         success: true,
         data: {
           token,
+          refreshToken,
           user: {
             id: user.id,
             email: user.email,

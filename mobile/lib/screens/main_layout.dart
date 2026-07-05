@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'inventory/catalog_screen.dart';
 import 'inventory/operation_screen.dart';
+import 'procedure_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -17,7 +18,7 @@ class _MainLayoutState extends State<MainLayout> {
     const HomeScreen(),
     const CatalogScreen(),
     const OperationScreen(),
-    const Center(child: Text('Процедуры')), // Stub
+    const ProcedureScreen(),
     const Center(child: Text('Профиль')), // Stub
   ];
 

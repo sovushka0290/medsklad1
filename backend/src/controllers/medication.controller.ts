@@ -1,7 +1,48 @@
 import { Request, Response, NextFunction } from 'express';
 import { medicationService } from '../services/medication.service';
+import { prisma } from '../lib/prisma';
+import { z } from 'zod';
+
+const createMedicationSchema = z.object({
+  name: z.string().min(2, 'Название обязательно').max(255),
+  mnn: z.string().optional(),
+  form: z.string().optional(),
+  unit: z.string().optional(),
+  group: z.string().optional(),
+  minQuantity: z.number().int().min(0).default(10),
+  barcodes: z.array(z.string()).min(1, 'Необходим хотя бы один штрихкод'),
+});
 
 export const medicationController = {
+  async createMedication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = createMedicationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
+      }
+      const { name, mnn, form, unit, group, minQuantity, barcodes } = parsed.data;
+
+      // Проверяем уникальность штрихкода
+      const existing = await prisma.medication.findFirst({
+        where: { barcodes: { hasSome: barcodes } },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          error: `Штрихкод уже привязан к медикаменту "${existing.name}" (ID: ${existing.id})`,
+        });
+      }
+
+      const medication = await prisma.medication.create({
+        data: { name, mnn, form, unit, group, minQuantity, barcodes },
+      });
+      res.status(201).json({ success: true, data: medication });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getMedications(req: Request, res: Response, next: NextFunction) {
     try {
       const barcode = req.query.barcode as string | undefined;
@@ -75,6 +116,30 @@ export const medicationController = {
     try {
       const medications = await medicationService.getCriticalMedications();
       res.json(medications);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async scanMedication(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { barcode } = req.body;
+      if (!barcode) {
+        return res.status(400).json({ success: false, error: 'Штрихкод обязателен' });
+      }
+
+      const medication = await prisma.medication.findFirst({
+        where: { barcodes: { has: barcode } }
+      });
+
+      if (!medication) {
+        return res.status(404).json({ success: false, error: 'Медикамент с таким штрихкодом не найден' });
+      }
+
+      res.json({
+        success: true,
+        data: medication
+      });
     } catch (error) {
       next(error);
     }

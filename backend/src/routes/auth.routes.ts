@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
+import { refreshController } from '../controllers/refresh.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { loginSchema } from '../validators/auth.validator';
@@ -16,6 +17,7 @@ const loginLimiter = rateLimit({
 });
 
 router.post('/auth/login', loginLimiter, validate(loginSchema), authController.login);
+router.post('/auth/refresh', refreshController);
 router.get('/auth/me', authMiddleware, authController.me);
 
 export default router;

@@ -22,10 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text.trim(),
       );
       
-      final token = response.data['token'];
+      final data = response.data['data'];
+      final token = data != null ? data['token'] : response.data['token'];
+      final refreshToken = data != null ? data['refreshToken'] : response.data['refreshToken'];
+
       if (token != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', token);
+        if (refreshToken != null) {
+          await prefs.setString('refreshToken', refreshToken);
+        }
         if (mounted) Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {

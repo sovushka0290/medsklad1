@@ -25,9 +25,63 @@ class ApiService {
         }
         return handler.next(options);
       },
-      onError: (DioException e, handler) {
-        if (e.response?.statusCode == 401) {
-          // Handle unauthorized
+      onError: (DioException e, handler) async {
+        if (e.response?.statusCode == 401 && 
+            e.requestOptions.path != '/auth/login' && 
+            e.requestOptions.path != '/auth/refresh') {
+          
+          final prefs = await SharedPreferences.getInstance();
+          final refreshToken = prefs.getString('refreshToken');
+          
+          if (refreshToken != null) {
+            try {
+              // Используем отдельный инстанс Dio, чтобы избежать бесконечной рекурсии
+              final refreshDio = Dio(BaseOptions(
+                baseUrl: e.requestOptions.baseUrl,
+                connectTimeout: const Duration(seconds: 5),
+                receiveTimeout: const Duration(seconds: 5),
+              ));
+
+              final response = await refreshDio.post('/auth/refresh', data: {
+                'refreshToken': refreshToken,
+              });
+
+              if (response.statusCode == 200 && response.data['success'] == true) {
+                final responseData = response.data['data'];
+                final newToken = responseData['token'];
+                final newRefreshToken = responseData['refreshToken'];
+
+                await prefs.setString('token', newToken);
+                if (newRefreshToken != null) {
+                  await prefs.setString('refreshToken', newRefreshToken);
+                }
+
+                // Клонируем исходный запрос и отправляем его снова с обновленным токеном
+                final options = e.requestOptions;
+                options.headers['Authorization'] = 'Bearer $newToken';
+
+                final retryDio = Dio(BaseOptions(
+                  baseUrl: options.baseUrl,
+                  connectTimeout: options.connectTimeout,
+                  receiveTimeout: options.receiveTimeout,
+                  headers: options.headers,
+                ));
+
+                final clonedResponse = await retryDio.request(
+                  options.path,
+                  data: options.data,
+                  queryParameters: options.queryParameters,
+                  options: Options(method: options.method),
+                );
+
+                return handler.resolve(clonedResponse);
+              }
+            } catch (refreshError) {
+              // Если рефреш токена завершился ошибкой, удаляем недействительные токены
+              await prefs.remove('token');
+              await prefs.remove('refreshToken');
+            }
+          }
         }
         return handler.next(e);
       }
@@ -42,7 +96,7 @@ class ApiService {
   }
 
   Future<Response> scanBarcode(String barcode) async {
-    return await dio.post('/inventory/scan', data: {
+    return await dio.post('/medication/scan', data: {
       'barcode': barcode,
     });
   }

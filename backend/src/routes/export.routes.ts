@@ -42,4 +42,25 @@ router.get(
   asyncHandler(exportController.exportInventoryAct)
 );
 
+router.get(
+  '/excel',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  asyncHandler(exportController.excelExport)
+);
+
+router.get(
+  '/csv',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  asyncHandler(exportController.csvExport)
+);
+
+router.get(
+  '/pdf',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  asyncHandler(exportController.pdfExport)
+);
+
 export default router;
