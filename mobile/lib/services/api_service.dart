@@ -62,7 +62,7 @@ class ApiService {
   }
 
   Future<Response> scanBarcode(String barcode) async {
-    return await dio.post('/inventory/scan', data: {
+    return await dio.post('/medication/scan', data: {
       'barcode': barcode,
     });
   }

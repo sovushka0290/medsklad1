@@ -6,13 +6,16 @@ import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-// Метрики доступны Руководителю и Админу (СЕР-9: убран inline try-catch, используется asyncHandler)
+// Метрики доступны Руководителю, Главной медсестре и Админу
 router.get(
   '/metrics',
   authMiddleware,
-  roleGuard(['ADMIN']),
+  roleGuard(['ADMIN', 'MANAGER', 'HEAD_NURSE', 'STOREKEEPER']),
   asyncHandler(async (req, res) => {
-    const metrics = await getDashboardMetrics();
+    const filter = req.query.filter as string | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
+    const metrics = await getDashboardMetrics(filter, startDate, endDate);
     res.json(metrics);
   })
 );

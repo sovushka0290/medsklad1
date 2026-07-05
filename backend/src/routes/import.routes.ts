@@ -7,12 +7,26 @@ import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-// Храним загруженный файл в памяти (чтобы сразу передать в xlsx)
+// 🔐 SECURITY: Храним загруженный файл в памяти (чтобы сразу передать в xlsx)
+const ALLOWED_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.ms-excel',                                           // .xls
+  'text/csv',                                                           // .csv
+  'application/csv',
+];
+
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10 МБ лимит
-  }
+    fileSize: 5 * 1024 * 1024 // 🔐 5 МБ максимум (было 10 МБ)
+  },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Разрешены только файлы .xlsx, .xls, .csv'));
+    }
+  },
 });
 
 // Доступ к импорту только у Администратора и Кладовщика

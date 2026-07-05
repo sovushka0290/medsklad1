@@ -16,6 +16,11 @@ export const importService = {
       throw new Error('Файл пуст или не содержит данных');
     }
 
+    // 🔐 SECURITY: Защита от DoS через огромные файлы (10K строк максимум)
+    if (data.length > 10000) {
+      throw new Error('Слишком много строк (макс. 10 000). Разбейте файл на части.');
+    }
+
     // Ищем Главный склад
     let mainStorage = await prisma.location.findFirst({
       where: { type: 'MAIN_STORAGE' }

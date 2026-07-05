@@ -21,6 +21,7 @@ import aiRoutes from './routes/ai.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/error.middleware';
+import { auditMiddleware } from './middleware/audit.middleware';
 
 const app = express();
 
@@ -41,7 +42,13 @@ app.use(helmet({
 app.use(cors({ origin: config.cors.origin }));
 app.use(express.json({ limit: '10kb' }));
 app.use(hpp());
-app.use(morgan('dev'));
+// 🔐 SECURITY: Morgan только в режиме development (в prod используем 'combined')
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+} else {
+  app.use(morgan('combined'));
+}
+app.use(auditMiddleware);
 
 // Global Rate Limiting
 const limiter = rateLimit({
@@ -63,9 +70,9 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/users', userRoutes);
 
-// Health check
+// Health check — без раскрытия версии
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ success: true, message: 'MedSklad API is running 🚀', version: '2.0.0' });
+  res.json({ success: true, status: 'ok' });
 });
 
 // 404 handler (АРХ-4)

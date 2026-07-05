@@ -9,6 +9,34 @@ export const getDashboardMetrics = async (filter?: string) => {
   if (cached) {
     return cached;
   }
+
+  // Вычисляем диапазон дат
+  const now = new Date();
+  let dateFrom: Date;
+  let dateTo: Date = now;
+
+  if (startDate && endDate) {
+    dateFrom = new Date(startDate);
+    dateTo = new Date(endDate);
+    dateTo.setHours(23, 59, 59, 999);
+  } else {
+    switch (filter) {
+      case 'today':
+        dateFrom = new Date(now);
+        dateFrom.setHours(0, 0, 0, 0);
+        break;
+      case 'month':
+        dateFrom = new Date(now);
+        dateFrom.setDate(now.getDate() - 30);
+        break;
+      case 'week':
+      default:
+        dateFrom = new Date(now);
+        dateFrom.setDate(now.getDate() - 7);
+        break;
+    }
+  }
+
   // Параллельные запросы для скорости
   const [batchAgg, allBatches, outflows, consumptionTrendRaw] = await Promise.all([
     // 1. Агрегация общих показателей через SQL (ПЕРФ-1: не загружаем все записи в память)
@@ -28,10 +56,10 @@ export const getDashboardMetrics = async (filter?: string) => {
       },
     }),
 
-    // 3. ТОП-10 расходуемых
+    // 3. ТОП-10 расходуемых за период
     prisma.transaction.groupBy({
       by: ['medicationId'],
-      where: { type: 'OUTFLOW' },
+      where: { type: 'OUTFLOW', createdAt: { gte: dateFrom, lte: dateTo } },
       _sum: { quantity: true },
       orderBy: { _sum: { quantity: 'desc' } },
       take: 10,
