@@ -14,6 +14,7 @@ import medicationRoutes from './routes/medication.routes';
 import transactionRoutes from './routes/transaction.routes';
 import procedureRoutes from './routes/procedure.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import { auditLog } from './middleware/audit';
 import importRoutes from './routes/import.routes';
 import exportRoutes from './routes/export.routes';
 import aiRoutes from './routes/ai.routes';
@@ -25,6 +26,12 @@ const app = express();
 
 // Performance Optimization
 app.use(compression());
+
+// Базовые Middleware
+app.use(express.json());
+
+// Глобальное логирование действий (кроме GET запросов по умолчанию)
+app.use(auditLog());
 
 // Security Middlewares
 app.use(helmet({

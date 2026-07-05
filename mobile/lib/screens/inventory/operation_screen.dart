@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/offline_queue.dart';
+import '../../theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 
 class OperationScreen extends StatefulWidget {
   const OperationScreen({super.key});
@@ -17,6 +20,58 @@ class _OperationScreenState extends State<OperationScreen> {
   final _medicationIdController = TextEditingController();
   final _locationIdController = TextEditingController();
   bool _isLoading = false;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _scanWithAI() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (image == null) return;
+
+      setState(() => _isLoading = true);
+      final bytes = await image.readAsBytes();
+      final base64Img = base64Encode(bytes);
+
+      final response = await ApiService().recognizeImage(base64Img);
+      
+      if (response.data != null) {
+        final double confidence = (response.data['confidence'] as num?)?.toDouble() ?? 0.0;
+        final String name = response.data['name'] ?? '';
+
+        if (mounted) {
+          if (confidence < 80) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Внимание'),
+                content: Text('Низкая уверенность распознавания ($confidence%).\\nИИ предположил: $name.\\nПожалуйста, введите данные вручную.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Понятно'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Успешно распознано: $name ($confidence%)'),
+              backgroundColor: Colors.green,
+            ));
+            // You can auto-fill ID if you map name to ID here
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ошибка распознавания'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> _submitTransaction() async {
     if (!_formKey.currentState!.validate()) return;
@@ -110,11 +165,21 @@ class _OperationScreenState extends State<OperationScreen> {
                       controller: _medicationIdController,
                       decoration: InputDecoration(
                         labelText: 'ID медикамента',
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.qr_code_scanner_rounded, color: Theme.of(context).primaryColor),
-                          onPressed: () {
-                            // TODO: Open Scanner Logic
-                          },
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.document_scanner, color: Theme.of(context).primaryColor),
+                              tooltip: 'Распознать через ИИ',
+                              onPressed: _scanWithAI,
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.qr_code_scanner_rounded, color: Theme.of(context).primaryColor),
+                              onPressed: () {
+                                // TODO: Open Scanner Logic
+                              },
+                            ),
+                          ],
                         ),
                       ),
                       keyboardType: TextInputType.number,
@@ -148,11 +213,25 @@ class _OperationScreenState extends State<OperationScreen> {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitTransaction,
-                  child: _isLoading 
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Провести транзакцию'),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return FadeTransition(opacity: animation, child: ScaleTransition(scale: animation, child: child));
+                  },
+                  child: _isLoading
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: SizedBox(
+                            height: 24, 
+                            width: 24, 
+                            child: CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3)
+                          ),
+                        )
+                      : ElevatedButton(
+                          key: const ValueKey('submitBtn'),
+                          onPressed: _submitTransaction,
+                          child: const Text('Провести транзакцию'),
+                        ),
                 ),
               )
             ],

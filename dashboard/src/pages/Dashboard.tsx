@@ -74,7 +74,7 @@ const Dashboard = memo(function Dashboard() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
       </div>
     );
@@ -85,16 +85,16 @@ const Dashboard = memo(function Dashboard() {
     <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Аналитика</h1>
-          <p className="text-slate-500 text-sm mt-1">Ключевые показатели и состояние склада</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white transition-colors duration-300">Аналитика</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors duration-300">Ключевые показатели и состояние склада</p>
         </div>
         <div className="flex gap-3 items-center flex-wrap">
-          <div className="relative border border-slate-200 rounded-xl bg-white shadow-sm flex items-center px-3 py-2">
-            <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+          <div className="relative border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center px-3 py-2 transition-colors duration-300">
+            <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2" />
             <select 
               value={dateFilter} 
               onChange={(e: any) => setDateFilter(e.target.value)}
-              className="bg-transparent text-sm text-slate-700 outline-none cursor-pointer"
+              className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer transition-colors duration-300"
             >
               <option value="today">Сегодня</option>
               <option value="week">За неделю</option>
@@ -122,36 +122,36 @@ const Dashboard = memo(function Dashboard() {
       </div>
         
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Всего товаров</h3>
-            <div className="p-2 bg-blue-50 rounded-lg"><Package className="h-5 w-5 text-blue-600" /></div>
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Всего товаров</h3>
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors duration-300"><Package className="h-5 w-5 text-blue-600 dark:text-blue-400" /></div>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{data?.overview?.totalItemsInStock || 0}</p>
+          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalItemsInStock || 0}</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Оценка склада</h3>
-            <div className="p-2 bg-emerald-50 rounded-lg"><DollarSign className="h-5 w-5 text-emerald-600" /></div>
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Оценка склада</h3>
+            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg transition-colors duration-300"><DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
+          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Уникальных позиций</h3>
-            <div className="p-2 bg-purple-50 rounded-lg"><TrendingUp className="h-5 w-5 text-purple-600" /></div>
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Уникальных позиций</h3>
+            <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg transition-colors duration-300"><TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" /></div>
           </div>
-          <p className="text-3xl font-bold text-slate-800">{data?.overview?.totalUniqueMedications || 0}</p>
+          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalUniqueMedications || 0}</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">В дефиците</h3>
-            <div className="p-2 bg-rose-50 rounded-lg"><AlertTriangle className="h-5 w-5 text-rose-600" /></div>
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">В дефиците</h3>
+            <div className="p-2 bg-rose-50 dark:bg-rose-900/30 rounded-lg transition-colors duration-300"><AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" /></div>
           </div>
-          <p className="text-3xl font-bold text-rose-600">{data?.overview?.criticalItemsCount || 0}</p>
+          <p className="text-3xl font-bold text-rose-600 dark:text-rose-400 transition-colors duration-300">{data?.overview?.criticalItemsCount || 0}</p>
         </div>
       </div>
 
@@ -159,8 +159,8 @@ const Dashboard = memo(function Dashboard() {
         {/* Charts Section */}
         <div className="lg:col-span-2 space-y-8">
           
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-6">Динамика расхода</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Динамика расхода</h2>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data?.consumptionTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -183,8 +183,8 @@ const Dashboard = memo(function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-6">Рейтинг кабинетов (Факт vs Норматив)</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Рейтинг кабинетов (Факт vs Норматив)</h2>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={proceduresData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -205,18 +205,18 @@ const Dashboard = memo(function Dashboard() {
         {/* Right Column: TOP-10 and Critical Items */}
         <div className="space-y-8 h-full">
           {/* Top 10 Consumed */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-1/2 min-h-[300px]">
-            <h2 className="text-lg font-bold text-slate-800 mb-6">Топ-10 расходных</h2>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col h-1/2 min-h-[300px] transition-colors duration-300">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Топ-10 расходных</h2>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {data?.top10Consumed?.length > 0 ? (
                 <div className="space-y-4">
                   {data.top10Consumed.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                    <div key={idx} className="flex justify-between items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-600">
                       <div className="truncate pr-4 flex-1">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{item.medicationName}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{item.medicationName}</p>
                       </div>
                       <div className="text-right whitespace-nowrap">
-                        <p className="text-sm font-bold text-slate-700">{item.totalConsumed}</p>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{item.totalConsumed}</p>
                       </div>
                     </div>
                   ))}
@@ -230,25 +230,25 @@ const Dashboard = memo(function Dashboard() {
           </div>
 
           {/* Critical Items Table */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-1/2 min-h-[300px]">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col h-1/2 min-h-[300px] transition-colors duration-300">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-800">Критичные остатки</h2>
-              <span className="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-full">Требуют внимания</span>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Критичные остатки</h2>
+              <span className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold px-2.5 py-1 rounded-full">Требуют внимания</span>
             </div>
             
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {data?.criticalItems?.length > 0 ? (
                 <div className="space-y-4">
                   {data.criticalItems.map((item: any, idx: number) => (
-                    <div key={idx} className="flex flex-col p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                    <div key={idx} className="flex flex-col p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-600">
                       <div className="flex justify-between items-start">
                         <div className="truncate pr-4 flex-1">
-                          <p className="text-sm font-semibold text-slate-800 truncate">{item.name}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Остаток: {item.quantity}</p>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Остаток: {item.quantity}</p>
                         </div>
                         <div className="text-right whitespace-nowrap">
-                          <p className="text-xs font-medium text-slate-400 mb-0.5">Норма</p>
-                          <p className="text-sm font-bold text-slate-700">{item.minQuantity}</p>
+                          <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mb-0.5">Норма</p>
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{item.minQuantity}</p>
                         </div>
                       </div>
                       {item.isExpiringSoon && (
@@ -272,55 +272,55 @@ const Dashboard = memo(function Dashboard() {
 
       {/* Export Modal */}
       {showExportModal ? (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl border border-slate-100">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Экспорт данных</h3>
-              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600">×</button>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-xl border border-slate-100 dark:border-slate-700 transition-colors duration-300">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white">Экспорт данных</h3>
+              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">×</button>
             </div>
             
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
               {/* Row 1 */}
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Отчет по складу</p>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Отчет по складу</p>
                   <div className="flex gap-2">
-                    <button onClick={() => handleExport('inventory', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition">Excel (XLSX)</button>
-                    <button onClick={() => handleExport('inventory', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 transition">PDF Документ</button>
+                    <button onClick={() => handleExport('inventory', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">Excel (XLSX)</button>
+                    <button onClick={() => handleExport('inventory', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg text-sm font-medium hover:bg-rose-100 dark:hover:bg-rose-900/50 transition">PDF Документ</button>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Журнал операций</p>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Журнал операций</p>
                   <div className="flex gap-2">
-                    <button onClick={() => handleExport('transactions', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition">Excel (XLSX)</button>
-                    <button onClick={() => handleExport('transactions', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 transition">PDF Документ</button>
+                    <button onClick={() => handleExport('transactions', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">Excel (XLSX)</button>
+                    <button onClick={() => handleExport('transactions', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg text-sm font-medium hover:bg-rose-100 dark:hover:bg-rose-900/50 transition">PDF Документ</button>
                   </div>
                 </div>
               </div>
 
               {/* Row 2 */}
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-100 dark:border-slate-700">
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Отчёт по кабинетам</p>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Отчёт по кабинетам</p>
                   <div className="flex gap-2">
-                    <button onClick={() => handleExport('cabinets', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition">Excel (XLSX)</button>
-                    <button onClick={() => handleExport('cabinets', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 transition">PDF Документ</button>
+                    <button onClick={() => handleExport('cabinets', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">Excel (XLSX)</button>
+                    <button onClick={() => handleExport('cabinets', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg text-sm font-medium hover:bg-rose-100 dark:hover:bg-rose-900/50 transition">PDF Документ</button>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Акт инвентаризации</p>
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Акт инвентаризации</p>
                   <div className="flex gap-2">
-                    <button onClick={() => handleExport('inventory-act', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition">Excel (XLSX)</button>
-                    <button onClick={() => handleExport('inventory-act', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-100 transition">PDF Документ</button>
+                    <button onClick={() => handleExport('inventory-act', 'xlsx')} disabled={exporting} className="flex-1 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">Excel (XLSX)</button>
+                    <button onClick={() => handleExport('inventory-act', 'pdf')} disabled={exporting} className="flex-1 py-2 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded-lg text-sm font-medium hover:bg-rose-100 dark:hover:bg-rose-900/50 transition">PDF Документ</button>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3 pt-6 border-t border-slate-100">
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Интеграция с 1С</p>
-                <button onClick={() => handleExport('1c', 'json')} disabled={exporting} className="w-full py-3 bg-amber-50 text-amber-700 rounded-lg text-sm font-bold hover:bg-amber-100 transition">
+              <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-700">
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Интеграция с 1С</p>
+                <button onClick={() => handleExport('1c', 'json')} disabled={exporting} className="w-full py-3 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm font-bold hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors">
                   Выгрузить журнал в формате JSON
                 </button>
               </div>

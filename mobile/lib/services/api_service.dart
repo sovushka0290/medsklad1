@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'offline_queue.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -25,10 +26,29 @@ class ApiService {
         }
         return handler.next(options);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
         if (e.response?.statusCode == 401) {
           // Handle unauthorized
         }
+
+        // Handle network errors for mutation requests
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.unknown) {
+          final options = e.requestOptions;
+          if (options.method.toUpperCase() != 'GET') {
+            await OfflineQueue().enqueueRequest(options.path, options.data ?? {});
+            // Return a fake success response to prevent UI from breaking
+            return handler.resolve(Response(
+              requestOptions: options,
+              statusCode: 202, // Accepted
+              statusMessage: 'Saved offline',
+              data: {'message': 'Request saved offline for later sync'},
+            ));
+          }
+        }
+
         return handler.next(e);
       }
     ));
@@ -44,6 +64,13 @@ class ApiService {
   Future<Response> scanBarcode(String barcode) async {
     return await dio.post('/inventory/scan', data: {
       'barcode': barcode,
+    });
+  }
+
+  Future<Response> recognizeImage(String base64Image) async {
+    return await dio.post('/ai/recognize', data: {
+      'base64Image': base64Image,
+      'mimeType': 'image/jpeg',
     });
   }
 

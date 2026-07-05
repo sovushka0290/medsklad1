@@ -26,10 +26,15 @@ export const authController = {
         expiresIn: config.jwtExpiresIn as string,
       } as jwt.SignOptions);
 
+      const refreshToken = jwt.sign({ id: user.id }, config.jwtRefreshSecret, {
+        expiresIn: config.jwtRefreshExpiresIn as string,
+      } as jwt.SignOptions);
+
       res.json({
         success: true,
         data: {
           token,
+          refreshToken,
           user: {
             id: user.id,
             email: user.email,
@@ -54,6 +59,41 @@ export const authController = {
       res.json({ success: true, data: safeUser });
     } catch (error) {
       next(error);
+    }
+  },
+
+  async refresh(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        return res.status(401).json({ success: false, error: 'Refresh token обязателен' });
+      }
+
+      const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret) as { id: number };
+      const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+
+      if (!user) {
+        return res.status(401).json({ success: false, error: 'Пользователь не найден' });
+      }
+
+      const payload = { id: user.id, email: user.email, role: user.role, name: user.name };
+      const token = jwt.sign(payload, config.jwtSecret, {
+        expiresIn: config.jwtExpiresIn as string,
+      } as jwt.SignOptions);
+
+      const newRefreshToken = jwt.sign({ id: user.id }, config.jwtRefreshSecret, {
+        expiresIn: config.jwtRefreshExpiresIn as string,
+      } as jwt.SignOptions);
+
+      res.json({
+        success: true,
+        data: {
+          token,
+          refreshToken: newRefreshToken,
+        },
+      });
+    } catch (error) {
+      res.status(401).json({ success: false, error: 'Недействительный или истекший refresh token' });
     }
   },
 };

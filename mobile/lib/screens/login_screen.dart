@@ -22,10 +22,12 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text.trim(),
       );
       
-      final token = response.data['token'];
+      final token = response.data['data']['token'];
+      final role = response.data['data']['user']['role'];
       if (token != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', token);
+        await prefs.setString('role', role ?? 'USER');
         if (mounted) Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
@@ -60,12 +62,19 @@ class _LoginScreenState extends State<LoginScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 32),
-            _isLoading 
-              ? const CircularProgressIndicator()
-              : ElevatedButton(
-                  onPressed: _login,
-                  child: const Text('Войти'),
-                ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(opacity: animation, child: ScaleTransition(scale: animation, child: child));
+              },
+              child: _isLoading 
+                ? const CircularProgressIndicator(key: ValueKey('loading'))
+                : ElevatedButton(
+                    key: const ValueKey('button'),
+                    onPressed: _login,
+                    child: const Text('Войти'),
+                  ),
+            ),
           ],
         ),
       ),
