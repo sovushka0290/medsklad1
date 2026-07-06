@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "MedSklad",
+    "slug": "alikhan",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "kz.medsklad.mobile",
+      "package": "com.alikhan.medsklad",
       "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -30,6 +30,12 @@
     ],
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b673f815-f261-4e40-b0f6-8208c943d0b1"
+      }
+    },
+    "owner": "sovushka0290s-team"
   }
 }
