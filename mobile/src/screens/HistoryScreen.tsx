@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  ActivityIndicator, 
+  Alert, 
+  RefreshControl,
+  Platform,
+  StatusBar
+} from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -44,32 +54,85 @@ export default function HistoryScreen() {
     fetchHistory();
   };
 
-  const getTypeLabel = (type: string) => {
+  const getTypeStyle = (type: string) => {
     switch (type) {
-      case 'INCOME': return { label: 'Приёмка', color: '#10b981', icon: 'arrow-down-circle' };
-      case 'OUTFLOW': return { label: 'Выдача', color: '#f59e0b', icon: 'arrow-up-circle' };
-      case 'RETURN': return { label: 'Возврат', color: '#3b82f6', icon: 'refresh-circle' };
-      case 'WRITE_OFF': return { label: 'Списание', color: '#ef4444', icon: 'close-circle' };
-      default: return { label: 'Неизвестно', color: '#64748b', icon: 'help-circle' };
+      case 'INCOME': 
+        return { 
+          label: 'Приёмка', 
+          color: '#10B981', 
+          borderColor: '#10B981',
+          bg: 'rgba(16, 185, 129, 0.08)',
+          icon: 'arrow-down-circle-outline' 
+        };
+      case 'OUTFLOW': 
+        return { 
+          label: 'Выдача', 
+          color: '#3B82F6', 
+          borderColor: '#3B82F6',
+          bg: 'rgba(59, 130, 246, 0.08)',
+          icon: 'arrow-up-circle-outline' 
+        };
+      case 'RETURN': 
+        return { 
+          label: 'Возврат', 
+          color: '#F59E0B', 
+          borderColor: '#F59E0B',
+          bg: 'rgba(245, 158, 11, 0.08)',
+          icon: 'refresh-circle-outline' 
+        };
+      case 'WRITE_OFF': 
+        return { 
+          label: 'Списание', 
+          color: '#EF4444', 
+          borderColor: '#EF4444',
+          bg: 'rgba(239, 68, 68, 0.08)',
+          icon: 'trash-outline' 
+        };
+      default: 
+        return { 
+          label: 'Операция', 
+          color: '#64748B', 
+          borderColor: '#64748B',
+          bg: 'rgba(100, 116, 139, 0.08)',
+          icon: 'help-circle-outline' 
+        };
     }
   };
 
   const renderItem = ({ item }: { item: Transaction }) => {
-    const typeInfo = getTypeLabel(item.type);
+    const styleInfo = getTypeStyle(item.type);
 
     return (
-      <View style={styles.card}>
-        <View style={styles.iconContainer}>
-          <Ionicons name={typeInfo.icon as any} size={32} color={typeInfo.color} />
+      <View style={[styles.card, { borderLeftColor: styleInfo.borderColor }]}>
+        <View style={[styles.iconContainer, { backgroundColor: styleInfo.bg }]}>
+          <Ionicons name={styleInfo.icon as any} size={22} color={styleInfo.color} />
         </View>
         <View style={styles.contentContainer}>
           <Text style={styles.medName}>{item.medication.name}</Text>
-          <Text style={styles.details}>
-            {typeInfo.label} • {item.quantity} шт.
-          </Text>
-          <Text style={styles.timeUser}>
-            {new Date(item.createdAt).toLocaleString()} {item.user ? `• ${item.user.name}` : ''}
-          </Text>
+          <View style={styles.detailsRow}>
+            <Text style={[styles.typeLabel, { color: styleInfo.color }]}>{styleInfo.label}</Text>
+            <Text style={styles.bullet}>•</Text>
+            <Text style={styles.qtyText}>{item.quantity} шт.</Text>
+          </View>
+          <View style={styles.footerRow}>
+            <Ionicons name="time-outline" size={12} color="#94A3B8" />
+            <Text style={styles.timeText}>
+              {new Date(item.createdAt).toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+            {item.user && (
+              <>
+                <Text style={styles.bullet}>•</Text>
+                <Ionicons name="person-outline" size={12} color="#94A3B8" />
+                <Text style={styles.userText}>{item.user.name}</Text>
+              </>
+            )}
+          </View>
         </View>
       </View>
     );
@@ -77,6 +140,7 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.title}>История</Text>
         <Text style={styles.subtitle}>Недавние операции на складе</Text>
@@ -92,7 +156,7 @@ export default function HistoryScreen() {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0891B2" />}
           ListEmptyComponent={
             <Text style={styles.emptyText}>История операций пуста</Text>
           }
@@ -105,70 +169,113 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    padding: 20,
+    padding: 24,
     backgroundColor: '#0A2342',
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#0A2342',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '900',
     color: '#fff',
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#94a3b8',
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500',
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   list: {
-    padding: 16,
+    padding: 20,
+    paddingTop: 8,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    borderLeftWidth: 4,
+    shadowColor: '#0A2342',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
   iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
   },
   contentContainer: {
     flex: 1,
   },
   medName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 4,
   },
-  details: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#475569',
-    marginBottom: 2,
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  timeUser: {
+  typeLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  bullet: {
+    marginHorizontal: 6,
+    color: '#CBD5E1',
+    fontSize: 12,
+  },
+  qtyText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  userText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
   },
   emptyText: {
     textAlign: 'center',
     marginTop: 40,
     color: '#64748b',
     fontSize: 16,
+    fontWeight: '500',
   },
 });

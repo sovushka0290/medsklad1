@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Alert, 
+  Modal, 
+  TextInput,
+  Platform,
+  StatusBar
+} from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -49,9 +61,6 @@ export default function ProceduresScreen() {
 
     setSubmitting(true);
     try {
-      // POST /procedures/log requires procedureId, locationId
-      // Body: { procedureId: number, locationId: number } (it logs 1 execution if quantity isn't supported, let's check backend)
-      // Wait, let's assume backend logs 1 per call, or takes quantity. The backend logProcedure creates a log. Let's send the loop.
       for (let i = 0; i < qty; i++) {
         await api.post('/procedures/log', {
           procedureId: selectedProc.id,
@@ -59,7 +68,7 @@ export default function ProceduresScreen() {
         });
       }
       
-      Alert.alert('Успех', 'Процедуры успешно записаны!');
+      Alert.alert('Успех', 'Расход медикаментов по процедуре зафиксирован!');
       setModalVisible(false);
     } catch (e: any) {
       Alert.alert('Ошибка', 'Не удалось записать процедуру');
@@ -78,22 +87,33 @@ export default function ProceduresScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Выполненные процедуры</Text>
-      <Text style={styles.subtitle}>Выберите процедуру для фиксации расхода по нормативу</Text>
+      <StatusBar barStyle="light-content" />
+      
+      <View style={styles.header}>
+        <Text style={styles.title}>Процедуры</Text>
+        <Text style={styles.subtitle}>Фиксация расхода медикаментов по нормативам</Text>
+      </View>
 
       <FlatList
         data={procedures}
         keyExtractor={item => item.id.toString()}
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onPress={() => openModal(item)}>
+          <TouchableOpacity 
+            style={styles.card} 
+            onPress={() => openModal(item)}
+            activeOpacity={0.7}
+          >
             <View style={styles.cardIcon}>
-              <Ionicons name="medical" size={24} color="#0891B2" />
+              <Ionicons name="medical" size={20} color="#0891B2" />
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardDesc} numberOfLines={2}>{item.description || 'Нет описания'}</Text>
+              <Text style={styles.cardDesc} numberOfLines={2}>
+                {item.description || 'Описание отсутствует'}
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </TouchableOpacity>
         )}
       />
@@ -103,27 +123,35 @@ export default function ProceduresScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Фиксация процедуры</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={22} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.procName}>{selectedProc?.name}</Text>
 
-            <Text style={styles.label}>Количество (пациентов):</Text>
-            <TextInput
-              style={styles.input}
-              value={quantity}
-              onChangeText={setQuantity}
-              keyboardType="number-pad"
-            />
+            <View style={styles.inputWrapper}>
+              <Text style={styles.label}>Количество выполнений:</Text>
+              <TextInput
+                style={styles.input}
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="number-pad"
+                autoFocus
+              />
+            </View>
 
             <TouchableOpacity 
               style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
               onPress={submitLog}
               disabled={submitting}
+              activeOpacity={0.8}
             >
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Записать</Text>}
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>Записать расход</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -133,40 +161,160 @@ export default function ProceduresScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  container: { flex: 1, backgroundColor: '#F1F5F9', padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#0A2342', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#64748b', marginBottom: 16 },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F8FAFC',
+  },
+  header: {
+    padding: 24,
+    backgroundColor: '#0A2342',
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#0A2342',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  list: {
+    padding: 20,
+    paddingTop: 8,
+  },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowColor: '#0A2342',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
   cardIcon: {
-    backgroundColor: '#e0f2fe',
-    padding: 10,
-    borderRadius: 10,
-    marginRight: 12,
+    backgroundColor: 'rgba(8, 145, 178, 0.08)',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
-  cardContent: { flex: 1 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#1e293b' },
-  cardDesc: { fontSize: 13, color: '#64748b', marginTop: 4 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, minHeight: 300 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#0A2342' },
-  procName: { fontSize: 16, color: '#0891B2', marginBottom: 20, fontWeight: '500' },
-  label: { fontSize: 16, fontWeight: '500', color: '#334155', marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, fontSize: 18, marginBottom: 24, backgroundColor: '#f8fafc' },
-  submitBtn: { backgroundColor: '#0891B2', padding: 16, borderRadius: 12, alignItems: 'center' },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  cardContent: { 
+    flex: 1,
+    marginRight: 8,
+  },
+  cardTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: '#0F172A',
+  },
+  cardDesc: { 
+    fontSize: 13, 
+    color: '#64748B', 
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  modalOverlay: { 
+    flex: 1, 
+    justifyContent: 'flex-end', 
+    backgroundColor: 'rgba(9, 26, 46, 0.6)',
+  },
+  modalContent: { 
+    backgroundColor: '#fff', 
+    borderTopLeftRadius: 28, 
+    borderTopRightRadius: 28, 
+    padding: 24, 
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 20,
+  },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: '800', 
+    color: '#0F172A',
+  },
+  closeBtn: {
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  procName: { 
+    fontSize: 16, 
+    color: '#0891B2', 
+    marginBottom: 24, 
+    fontWeight: '700', 
+  },
+  inputWrapper: {
+    marginBottom: 28,
+  },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#475569', 
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: { 
+    borderWidth: 1, 
+    borderColor: '#E2E8F0', 
+    borderRadius: 14, 
+    padding: 14, 
+    fontSize: 20, 
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+  },
+  submitBtn: { 
+    backgroundColor: '#0891B2', 
+    padding: 16, 
+    borderRadius: 14, 
+    alignItems: 'center',
+    shadowColor: '#0891B2',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  submitBtnDisabled: { 
+    opacity: 0.7, 
+  },
+  submitBtnText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: '700',
+  },
 });

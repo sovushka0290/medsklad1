@@ -282,29 +282,29 @@ export default memo(function InventoryPage() {
 
   return (
     <>
-      {/* Top Tabs */}
-      <div className="flex border-b border-slate-200 mb-6">
+      {/* Top Tabs in capsule style */}
+      <div className="flex p-1 bg-slate-200/50 dark:bg-slate-800/60 rounded-2xl mb-8 w-fit border border-slate-200/20 backdrop-blur-sm">
         <button
           onClick={() => setActiveTab('stock')}
-          className={`px-5 py-3 font-semibold text-sm transition-all flex items-center gap-2 ${
+          className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
             activeTab === 'stock'
-              ? 'border-b-2 border-cyan-600 text-cyan-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white dark:bg-slate-700 text-cyan-600 dark:text-cyan-400 shadow-sm shadow-slate-900/5'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <Package className="w-4 h-4" />
+          <Package className="w-3.5 h-3.5" />
           Остатки на складе
         </button>
         <button
           onClick={() => setActiveTab('sessions')}
-          className={`px-5 py-3 font-semibold text-sm transition-all flex items-center gap-2 ${
+          className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
             activeTab === 'sessions'
-              ? 'border-b-2 border-cyan-600 text-cyan-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white dark:bg-slate-700 text-cyan-600 dark:text-cyan-400 shadow-sm shadow-slate-900/5'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <ClipboardList className="w-4 h-4" />
-          Инвентаризация и сессии
+          <ClipboardList className="w-3.5 h-3.5" />
+          Сессии инвентаризации
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import { api } from '../api';
 import { Package, AlertTriangle, TrendingUp, DollarSign, Download, Calendar } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import Skeleton from '../components/Skeleton';
 
 const Dashboard = memo(function Dashboard() {
@@ -156,37 +156,45 @@ const Dashboard = memo(function Dashboard() {
         </div>
       </div>
         
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-cyan-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-cyan-500/5 transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Всего товаров</h3>
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors duration-300"><Package className="h-5 w-5 text-blue-600 dark:text-blue-400" /></div>
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Всего товаров</h3>
+            <div className="p-2.5 bg-cyan-50 dark:bg-cyan-900/30 rounded-xl transition-colors duration-300">
+              <Package className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalItemsInStock || 0}</p>
+          <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalItemsInStock || 0}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Оценка склада</h3>
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg transition-colors duration-300"><DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Оценка склада</h3>
+            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl transition-colors duration-300">
+              <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
+          <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-purple-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300 hover:-translate-y-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">Уникальных позиций</h3>
-            <div className="p-2 bg-purple-50 dark:bg-purple-900/30 rounded-lg transition-colors duration-300"><TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" /></div>
+            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Уникальных позиций</h3>
+            <div className="p-2.5 bg-purple-50 dark:bg-purple-900/30 rounded-xl transition-colors duration-300">
+              <TrendingUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalUniqueMedications || 0}</p>
+          <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalUniqueMedications || 0}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col justify-between hover:shadow-md transition-all duration-300 hover:-translate-y-1">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-300 hover:-translate-y-1 bg-rose-500/5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider transition-colors duration-300">В дефиците</h3>
-            <div className="p-2 bg-rose-50 dark:bg-rose-900/30 rounded-lg transition-colors duration-300"><AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" /></div>
+            <h3 className="text-xs font-bold text-rose-500 dark:text-rose-400 uppercase tracking-widest transition-colors duration-300">В дефиците</h3>
+            <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl transition-colors duration-300">
+              <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+            </div>
           </div>
-          <p className="text-3xl font-bold text-rose-600 dark:text-rose-400 transition-colors duration-300">{data?.overview?.criticalItemsCount || 0}</p>
+          <p className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 transition-colors duration-300">{data?.overview?.criticalItemsCount || 0}</p>
         </div>
       </div>
 
@@ -194,42 +202,48 @@ const Dashboard = memo(function Dashboard() {
         {/* Charts Section */}
         <div className="lg:col-span-2 space-y-8">
           
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 transition-colors duration-300">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Динамика расхода</h2>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data?.consumptionTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <AreaChart data={data?.consumptionTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorConsumption" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0891B2" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#0891B2" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-700/50" />
                   <XAxis 
                     dataKey="date" 
                     tickFormatter={(val) => new Date(val).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
-                    tick={{ fontSize: 12, fill: '#64748B' }} 
+                    tick={{ fontSize: 11, fill: '#64748B' }} 
                     tickLine={false} 
                     axisLine={false} 
                   />
-                  <YAxis tick={{ fontSize: 12, fill: '#64748B' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickLine={false} axisLine={false} />
                   <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                    contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' }} 
                     labelFormatter={(label) => new Date(label).toLocaleDateString('ru-RU')}
                   />
-                  <Line type="monotone" dataKey="total" stroke="#0891B2" strokeWidth={3} dot={{ r: 4, fill: '#0891B2', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Area type="monotone" dataKey="total" stroke="#0891B2" strokeWidth={3} fillOpacity={1} fill="url(#colorConsumption)" dot={{ r: 4, fill: '#0891B2', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 transition-colors duration-300">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Рейтинг кабинетов (Факт vs Норматив)</h2>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={proceduresData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748B' }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#64748B' }} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: '#F1F5F9' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend />
-                  <Bar dataKey="Факт" fill="#0891B2" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Норматив" fill="#94A3B8" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-slate-100 dark:text-slate-700/50" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickLine={false} axisLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }} contentStyle={{ borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' }} />
+                  <Legend iconType="circle" />
+                  <Bar dataKey="Факт" fill="#0891B2" radius={[6, 6, 0, 0]} barSize={20} />
+                  <Bar dataKey="Норматив" fill="#94A3B8" radius={[6, 6, 0, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
