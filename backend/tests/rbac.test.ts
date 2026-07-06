@@ -94,9 +94,7 @@ describe('RBAC Role Guard Integration Tests', () => {
       .send({ locationId: 1 });
     expect(resNurse.status).toBe(403);
   });
-});
 
-<<<<<<< HEAD
   test('GET /api/users/audit-logs - allowed for ADMIN, forbidden for STOREKEEPER', async () => {
     // Admin request
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 1, role: 'ADMIN' });
@@ -111,7 +109,9 @@ describe('RBAC Role Guard Integration Tests', () => {
       .get('/api/users/audit-logs')
       .set('Authorization', `Bearer ${storekeeperToken}`);
     expect(resStore.status).toBe(403);
-=======
+  });
+});
+
 describe('RBAC Middleware Unit Tests', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
@@ -159,6 +159,5 @@ describe('RBAC Middleware Unit Tests', () => {
     expect(nextFunction).not.toHaveBeenCalled();
     expect(mockResponse.status).toHaveBeenCalledWith(403);
     expect(mockResponse.json).toHaveBeenCalledWith({ success: false, error: 'Недостаточно прав' });
->>>>>>> c79c4cada72b9906ae888aba688f6412f470d5ea
   });
 });
