@@ -129,6 +129,11 @@ export const transactionService = {
                 role: { in: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER'] },
                 isActive: true
               },
+              select: {
+                pushToken: true,
+                email: true,
+                role: true,
+              }
             });
             
             // Push Notification
