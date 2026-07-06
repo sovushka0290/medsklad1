@@ -71,7 +71,7 @@ async function main() {
 
   // Анестетики
   const ultra = await prisma.medication.create({
-    data: { barcodes: [], name: 'Ультракаин Д-С форте 2мл (анестетик)', minQuantity: 50 },
+    data: { barcodes: ['2000000000010'], name: 'Ультракаин Д-С форте 2мл (анестетик)', minQuantity: 50 },
   });
   const lido = await prisma.medication.create({
     data: { barcodes: [], name: 'Лидокаин 2% 2мл (анестетик)', minQuantity: 30 },
@@ -85,7 +85,7 @@ async function main() {
 
   // Пломбировочные материалы (композиты)
   const filtek = await prisma.medication.create({
-    data: { barcodes: [], name: 'Филтек Z250 композит (Filtek 4г)', minQuantity: 5 },
+    data: { barcodes: ['2000000000058'], name: 'Филтек Z250 композит (Filtek 4г)', minQuantity: 5 },
   });
   const estelite = await prisma.medication.create({
     data: { barcodes: [], name: 'Эстелайт Сигма Квик шприц 3.8г', minQuantity: 8 },
@@ -99,7 +99,7 @@ async function main() {
 
   // Расходники
   const glovesM = await prisma.medication.create({
-    data: { barcodes: [], name: 'Перчатки нитриловые синие (M)', minQuantity: 20 },
+    data: { barcodes: ['2000000000096'], name: 'Перчатки нитриловые синие (M)', minQuantity: 20 },
   });
   const glovesS = await prisma.medication.create({
     data: { barcodes: [], name: 'Перчатки нитриловые синие (S)', minQuantity: 20 },
@@ -125,7 +125,7 @@ async function main() {
     data: { barcodes: [], name: 'Эндосольв жидкость для распломбировки', minQuantity: 2 },
   });
   const gipo = await prisma.medication.create({
-    data: { barcodes: [], name: 'Гипохлорит натрия 3% раствор 100мл', minQuantity: 15 },
+    data: { barcodes: ['2000000000171'], name: 'Гипохлорит натрия 3% раствор 100мл', minQuantity: 15 },
   });
   const cofferdam = await prisma.medication.create({
     data: { barcodes: [], name: 'Коффердам жидкий барьер (шприц)', minQuantity: 5 },
