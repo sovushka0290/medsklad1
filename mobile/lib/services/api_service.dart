@@ -114,32 +114,4 @@ class ApiService {
   static Future<Response> post(String path, dynamic data) async {
     return await ApiService().dio.post(path, data: data);
   }
-
-  // --- New Methods ---
-  Future<Response> fetchDashboardMetrics(String filter) async {
-    return await dio.get('/dashboard', queryParameters: {'filter': filter});
-  }
-
-  Future<Response> createMedication(Map<String, dynamic> medicationData) async {
-    return await dio.post('/medications', data: medicationData);
-  }
-
-  Future<Response> startInventory(int locationId) async {
-    return await dio.post('/inventory/start', data: {'locationId': locationId});
-  }
-
-  Future<Response> closeInventory(int sessionId) async {
-    return await dio.post('/inventory/$sessionId/close');
-  }
-
-  Future<Response> adjustItemQuantity(int sessionId, String barcode, int adjustment) async {
-    return await dio.put('/inventory/$sessionId/adjust', data: {
-      'barcode': barcode,
-      'quantityAdjustment': adjustment,
-    });
-  }
-
-  Future<Response> getProceduresComparison() async {
-    return await dio.get('/procedures/comparison');
-  }
 }

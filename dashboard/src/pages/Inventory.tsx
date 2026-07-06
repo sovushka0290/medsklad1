@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { api } from '../api';
 import {
   Package, Search, Plus, ArrowDown, ArrowUp, RotateCcw, Trash2,
   AlertTriangle, ChevronDown, ChevronUp, X, Loader2, Filter,
-  ClipboardList, Play, CheckCircle, RefreshCw, Barcode, ShieldAlert
+  ClipboardList, Play, CheckCircle, RefreshCw, Barcode
 } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
 
 type TransactionType = 'INCOME' | 'OUTFLOW' | 'RETURN' | 'WRITE_OFF';
 
@@ -64,7 +65,7 @@ const TX_LABELS: Record<TransactionType, { label: string; color: string; icon: R
   WRITE_OFF: { label: 'Списание',  color: 'rose',    icon: Trash2 },
 };
 
-function ExpiryBadge({ date }: { date: string | null }) {
+const ExpiryBadge = memo(function ExpiryBadge({ date }: { date: string | null }) {
   if (!date) return null;
   const d = new Date(date);
   const diff = Math.ceil((d.getTime() - Date.now()) / 86400000);
@@ -72,7 +73,7 @@ function ExpiryBadge({ date }: { date: string | null }) {
   if (diff <= 30) return <span className="text-[10px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">≤30 дней</span>;
   if (diff <= 60) return <span className="text-[10px] font-bold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">≤60 дней</span>;
   return null;
-}
+});
 
 export default memo(function InventoryPage() {
   const [activeTab, setActiveTab] = useState<'stock' | 'sessions'>('stock');
@@ -154,26 +155,30 @@ export default memo(function InventoryPage() {
     }
   }, [activeTab, fetchData, fetchSessions]);
 
-  const groups = [...new Set(meds.map(m => m.group).filter(Boolean))] as string[];
+  const groups = useMemo(() => {
+    return [...new Set(meds.map(m => m.group).filter(Boolean))] as string[];
+  }, [meds]);
 
-  const filtered = meds.filter(med => {
-    const totalStock = med.batches.reduce((s, b) => s + b.quantity, 0);
-    if (showCriticalOnly && totalStock > med.minQuantity) return false;
-    if (groupFilter && med.group !== groupFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return med.name.toLowerCase().includes(q) || med.barcodes.some(b => b.includes(q)) || med.mnn?.toLowerCase().includes(q);
-    }
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return meds.filter(med => {
+      const totalStock = med.batches.reduce((s, b) => s + b.quantity, 0);
+      if (showCriticalOnly && totalStock > med.minQuantity) return false;
+      if (groupFilter && med.group !== groupFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return med.name.toLowerCase().includes(q) || med.barcodes.some(b => b.includes(q)) || med.mnn?.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [meds, showCriticalOnly, groupFilter, search]);
 
-  const openTx = (med: Medication, type: TransactionType) => {
+  const openTx = useCallback((med: Medication, type: TransactionType) => {
     setTxForm({ quantity: 1, locationId: locations[0]?.id?.toString() || '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '' });
     setTxError('');
     setTxModal({ open: true, med, type });
-  };
+  }, [locations]);
 
-  const submitTx = async () => {
+  const submitTx = useCallback(async () => {
     if (!txModal.med) return;
     if (!txForm.locationId) { setTxError('Выберите локацию'); return; }
     setTxLoading(true);
@@ -197,9 +202,9 @@ export default memo(function InventoryPage() {
     } finally {
       setTxLoading(false);
     }
-  };
+  }, [txModal.med, txModal.type, txForm, fetchData]);
 
-  const submitNewMed = async () => {
+  const submitNewMed = useCallback(async () => {
     setNewMedError('');
     if (!newMed.name.trim()) { setNewMedError('Введите название'); return; }
     if (!newMed.barcodes.trim()) { setNewMedError('Введите хотя бы один штрихкод'); return; }
@@ -223,9 +228,9 @@ export default memo(function InventoryPage() {
     } finally {
       setSavingMed(false);
     }
-  };
+  }, [newMed, fetchData]);
 
-  const handleStartSession = async () => {
+  const handleStartSession = useCallback(async () => {
     if (!selectedLocId) { setStartError('Выберите кабинет'); return; }
     setStartError('');
     setStartLoading(true);
@@ -239,9 +244,9 @@ export default memo(function InventoryPage() {
     } finally {
       setStartLoading(false);
     }
-  };
+  }, [selectedLocId, fetchSessions]);
 
-  const handleCloseSession = async (id: number) => {
+  const handleCloseSession = useCallback(async (id: number) => {
     if (!window.confirm('Вы уверены, что хотите завершить инвентаризацию? Все неучтенные остатки будут зафиксированы.')) return;
     try {
       await api.post(`/inventory/${id}/close`);
@@ -249,15 +254,15 @@ export default memo(function InventoryPage() {
     } catch (err: any) {
       alert(err.response?.data?.error || 'Ошибка завершения');
     }
-  };
+  }, [fetchSessions]);
 
-  const openAdjust = (sessionId: number) => {
+  const openAdjust = useCallback((sessionId: number) => {
     setAdjustForm({ sessionId, barcode: '', quantityAdjustment: 1 });
     setAdjustError('');
     setShowAdjust(true);
-  };
+  }, []);
 
-  const submitAdjust = async () => {
+  const submitAdjust = useCallback(async () => {
     if (!adjustForm.barcode.trim()) { setAdjustError('Введите штрихкод'); return; }
     setAdjustLoading(true);
     setAdjustError('');
@@ -273,7 +278,7 @@ export default memo(function InventoryPage() {
     } finally {
       setAdjustLoading(false);
     }
-  };
+  }, [adjustForm, fetchSessions]);
 
   return (
     <>
@@ -360,8 +365,8 @@ export default memo(function InventoryPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+            <div className="space-y-3">
+              <Skeleton variant="rect" count={5} className="h-16" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -485,8 +490,8 @@ export default memo(function InventoryPage() {
           </div>
 
           {sessionLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+            <div className="space-y-4">
+              <Skeleton variant="rect" count={3} className="h-20" />
             </div>
           ) : (
             <div className="space-y-8">

@@ -5,6 +5,7 @@ import {
   Calendar, Download, Loader2, ShieldCheck, History, AlertTriangle, AlertCircle,
   Package, DollarSign, Activity, AlertOctagon, TrendingUp
 } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
 
 interface Transaction {
   id: number;
@@ -95,7 +96,7 @@ export default memo(function ReportsPage() {
     try {
       let url = `/dashboard/metrics?filter=${dateFilter}`;
       if (dateFilter === 'custom') {
-        if (!startDate || !endDate) return; // Wait for both dates
+        if (!startDate || !endDate) return;
         url = `/dashboard/metrics?filter=custom&startDate=${startDate}&endDate=${endDate}`;
       }
       const res = await api.get(url);
@@ -219,6 +220,10 @@ export default memo(function ReportsPage() {
               </div>
             </div>
           </div>
+        ) : loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton variant="rect" count={4} className="h-20" />
+          </div>
         ) : (
           <div className="text-center py-6 text-slate-400">Выберите диапазон дат для загрузки метрик</div>
         )}
@@ -302,8 +307,8 @@ export default memo(function ReportsPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden p-6 space-y-4">
+          <Skeleton variant="text" count={8} className="h-12" />
         </div>
       ) : activeTab === 'transactions' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

@@ -1,6 +1,8 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
+import Skeleton from './components/Skeleton';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -15,26 +17,35 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const FallbackLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-50">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
+  <div className="p-8 space-y-6 w-full max-w-7xl mx-auto">
+    <div className="flex justify-between items-center">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-10 w-32" />
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <Skeleton variant="rect" count={4} className="h-28" />
+    </div>
+    <Skeleton variant="rect" className="h-96" />
   </div>
 );
 
 function App() {
   return (
-    <Router>
-      <Suspense fallback={<FallbackLoader />}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/inventory" element={<PrivateRoute><Inventory /></PrivateRoute>} />
-          <Route path="/procedures" element={<PrivateRoute><Procedures /></PrivateRoute>} />
-          <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
-          <Route path="/import" element={<PrivateRoute><Import /></PrivateRoute>} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Suspense>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Suspense fallback={<FallbackLoader />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            <Route path="/inventory" element={<PrivateRoute><Inventory /></PrivateRoute>} />
+            <Route path="/procedures" element={<PrivateRoute><Procedures /></PrivateRoute>} />
+            <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
+            <Route path="/import" element={<PrivateRoute><Import /></PrivateRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

@@ -33,6 +33,44 @@ export const importService = {
       });
     }
 
+    // Собираем все уникальные штрихкоды из Excel для пакетной загрузки
+    const barcodesInExcel: string[] = [];
+    for (const row of data) {
+      const barcode = (row['Штрихкод'] || row['Barcode'] || row['barcode'])?.toString().trim();
+      if (barcode) {
+        barcodesInExcel.push(barcode);
+      }
+    }
+
+    // Пакетная загрузка существующих медикаментов со штрихкодами и их партий на главном складе
+    const existingMeds = await prisma.medication.findMany({
+      where: {
+        barcodes: {
+          hasSome: barcodesInExcel
+        }
+      },
+      include: {
+        batches: {
+          where: { locationId: mainStorage.id }
+        }
+      }
+    });
+
+    // Строим кэш-таблицы в оперативной памяти для O(1) поиска
+    const medMap = new Map<string, any>();
+    for (const med of existingMeds) {
+      for (const bc of med.barcodes) {
+        medMap.set(bc, med);
+      }
+    }
+
+    const batchMap = new Map<number, any>();
+    for (const med of existingMeds) {
+      if (med.batches && med.batches.length > 0) {
+        batchMap.set(med.id, med.batches[0]);
+      }
+    }
+
     let successCount = 0;
     const errors: string[] = [];
 
@@ -54,10 +92,8 @@ export const importService = {
 
       try {
         await prisma.$transaction(async (tx) => {
-          // Ищем медикамент
-          let medication = await tx.medication.findFirst({
-            where: { barcodes: { has: barcode } }
-          });
+          // Ищем медикамент в локальном кэше
+          let medication = medMap.get(barcode);
 
           // Создаем если нет
           if (!medication) {
@@ -70,32 +106,41 @@ export const importService = {
                 minQuantity: 10
               }
             });
-          } else {
-             // Если название поменялось, мы можем обновить, но пока просто оставляем как есть
+            // Обновляем кэш
+            medMap.set(barcode, medication);
           }
 
           if (quantity > 0) {
-            // Ищем партию на складе
-            let batch = await tx.batch.findFirst({
-              where: {
-                medicationId: medication.id,
-                locationId: mainStorage!.id
-              }
-            });
+            // Ищем партию на складе в локальном кэше
+            let batch = batchMap.get(medication.id);
+
+            if (!batch) {
+              // Если в локальном кэше нет, проверяем в бд (на случай параллельного добавления)
+              batch = await tx.batch.findFirst({
+                where: {
+                  medicationId: medication.id,
+                  locationId: mainStorage!.id
+                }
+              });
+            }
 
             if (batch) {
-              await tx.batch.update({
+              const updatedBatch = await tx.batch.update({
                 where: { id: batch.id },
                 data: { quantity: batch.quantity + quantity }
               });
+              // Обновляем кэш
+              batchMap.set(medication.id, updatedBatch);
             } else {
-              await tx.batch.create({
+              const newBatch = await tx.batch.create({
                 data: {
                   medicationId: medication.id,
                   locationId: mainStorage!.id,
                   quantity
                 }
               });
+              // Обновляем кэш
+              batchMap.set(medication.id, newBatch);
             }
 
             // Создаем транзакцию Прихода

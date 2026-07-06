@@ -71,6 +71,7 @@ describe('Audit Log Middleware Tests', () => {
         userId: 10,
         ipAddress: '127.0.0.1',
         action: 'GET /api/medications',
+        endpoint: '/api/medications',
       }
     });
   });

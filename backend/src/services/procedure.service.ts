@@ -75,13 +75,21 @@ export const logProcedure = async (data: {
       throw new Error('Процедура не найдена');
     }
 
+    // Извлекаем все партии для всех требуемых медикаментов в одном запросе
+    const medicationIds = procedure.norms.map((n) => n.medicationId);
+    const allBatches = await tx.batch.findMany({
+      where: {
+        medicationId: { in: medicationIds },
+        locationId: data.locationId,
+        quantity: { gt: 0 },
+      },
+      orderBy: { expirationDate: 'asc' },
+    });
+
     // Списываем медикаменты со склада согласно нормам
     for (const norm of procedure.norms) {
-      // Ищем партии списанием по FEFO
-      const batches = await tx.batch.findMany({
-        where: { medicationId: norm.medicationId, locationId: data.locationId, quantity: { gt: 0 } },
-        orderBy: { expirationDate: 'asc' }
-      });
+      // Ищем партии списанием по FEFO из предзагруженного списка
+      const batches = allBatches.filter((b) => b.medicationId === norm.medicationId);
 
       let remainingToDeduct = norm.expectedQuantity;
       let currentTotalStock = batches.reduce((sum, b) => sum + b.quantity, 0);

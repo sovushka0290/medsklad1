@@ -1,71 +1,76 @@
-import { useEffect, useState, useCallback, memo } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { api } from '../api';
 import {
-  Activity, Plus, FileText, CheckCircle, AlertTriangle, AlertCircle,
-  TrendingUp, BarChart2, ShieldAlert, X, ChevronRight, Loader2
+  FileText, Plus, Activity, AlertTriangle, X, Loader2, ShieldAlert,
+  TrendingUp, BarChart2, CheckCircle
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Skeleton from '../components/Skeleton';
 
-interface MedicationNorm {
+interface ProcedureNorm {
   id: number;
-  medication: { id: number; name: string };
+  medicationId: number;
   expectedQuantity: number;
   tolerancePercent: number;
+  medication: { name: string };
 }
 
 interface Procedure {
   id: number;
   name: string;
   description: string | null;
-  norms: MedicationNorm[];
+  norms: ProcedureNorm[];
 }
 
-interface Location {
-  id: number;
-  name: string;
-  type: string;
+interface ComparisonUsage {
+  medicationId: number;
+  medicationName: string;
+  expectedTotal: number;
+  actualTotal: number;
+  minAllowed: number;
+  maxAllowed: number;
+  tolerancePercent: number;
+  isViolation: boolean;
 }
 
-interface ComparisonItem {
+interface ProcedureComparison {
   locationId: number;
   cabinetName: string;
   procedureId: number;
   procedureName: string;
   timesPerformed: number;
-  usage: {
-    medicationId: number;
-    medicationName: string;
-    expectedTotal: number;
-    actualTotal: number;
-    isViolation: boolean;
-    minAllowed: number;
-    maxAllowed: number;
-    tolerancePercent: number;
-  }[];
+  usage: ComparisonUsage[];
+}
+
+interface Location {
+  id: number;
+  name: string;
 }
 
 export default memo(function ProceduresPage() {
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [comparison, setComparison] = useState<ComparisonItem[]>([]);
+  const [comparison, setComparison] = useState<ProcedureComparison[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // New Procedure Form
+  // New Procedure states
   const [showNewProc, setShowNewProc] = useState(false);
   const [newProcName, setNewProcName] = useState('');
   const [newProcDesc, setNewProcDesc] = useState('');
   const [newProcNorms, setNewProcNorms] = useState<{ medicationId: number; name: string; expectedQuantity: number; tolerancePercent: number }[]>([]);
+  const [savingProc, setSavingProc] = useState(false);
+  const [newProcError, setNewProcError] = useState('');
+
+  // Med search for norms
   const [medSearch, setMedSearch] = useState('');
   const [searchResults, setSearchResults] = useState<{ id: number; name: string }[]>([]);
-  const [newProcError, setNewProcError] = useState('');
-  const [savingProc, setSavingProc] = useState(false);
 
-  // Log Procedure Form
+  // Log procedure states
   const [showLogProc, setShowLogProc] = useState(false);
   const [selectedProcId, setSelectedProcId] = useState('');
   const [selectedLocationId, setSelectedLocationId] = useState('');
-  const [logError, setLogError] = useState('');
   const [loggingProc, setLoggingProc] = useState(false);
+  const [logError, setLogError] = useState('');
   const [logSuccess, setLogSuccess] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -74,13 +79,13 @@ export default memo(function ProceduresPage() {
       const [procRes, locRes, compRes] = await Promise.all([
         api.get('/procedures'),
         api.get('/locations'),
-        api.get('/procedures/comparison'),
+        api.get('/procedures/compare'),
       ]);
-      setProcedures(procRes.data?.data || []);
+      setProcedures(procRes.data || []);
       setLocations(locRes.data || []);
-      setComparison(compRes.data?.data || []);
+      setComparison(compRes.data || []);
     } catch (err) {
-      console.error('Failed to fetch procedures data', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -90,9 +95,9 @@ export default memo(function ProceduresPage() {
     fetchData();
   }, [fetchData]);
 
-  // Search medications for new norm
+  // Debounced search for medications
   useEffect(() => {
-    if (medSearch.length < 2) {
+    if (medSearch.trim().length < 2) {
       setSearchResults([]);
       return;
     }
@@ -107,18 +112,18 @@ export default memo(function ProceduresPage() {
     return () => clearTimeout(delayDebounce);
   }, [medSearch]);
 
-  const addNorm = (med: { id: number; name: string }) => {
+  const addNorm = useCallback((med: { id: number; name: string }) => {
     if (newProcNorms.some(n => n.medicationId === med.id)) return;
-    setNewProcNorms([...newProcNorms, { medicationId: med.id, name: med.name, expectedQuantity: 1, tolerancePercent: 10 }]);
+    setNewProcNorms(prev => [...prev, { medicationId: med.id, name: med.name, expectedQuantity: 1, tolerancePercent: 10 }]);
     setMedSearch('');
     setSearchResults([]);
-  };
+  }, [newProcNorms]);
 
-  const removeNorm = (medId: number) => {
-    setNewProcNorms(newProcNorms.filter(n => n.medicationId !== medId));
-  };
+  const removeNorm = useCallback((medId: number) => {
+    setNewProcNorms(prev => prev.filter(n => n.medicationId !== medId));
+  }, []);
 
-  const handleCreateProcedure = async () => {
+  const handleCreateProcedure = useCallback(async () => {
     setNewProcError('');
     if (!newProcName.trim()) {
       setNewProcError('Введите название процедуры');
@@ -149,9 +154,9 @@ export default memo(function ProceduresPage() {
     } finally {
       setSavingProc(false);
     }
-  };
+  }, [newProcName, newProcDesc, newProcNorms, fetchData]);
 
-  const handleLogProcedure = async () => {
+  const handleLogProcedure = useCallback(async () => {
     setLogError('');
     setLogSuccess(false);
     if (!selectedProcId) {
@@ -171,7 +176,6 @@ export default memo(function ProceduresPage() {
       setLogSuccess(true);
       setSelectedProcId('');
       setSelectedLocationId('');
-      // Auto hide success message
       setTimeout(() => setLogSuccess(false), 3000);
       await fetchData();
     } catch (err: any) {
@@ -179,22 +183,30 @@ export default memo(function ProceduresPage() {
     } finally {
       setLoggingProc(false);
     }
-  };
+  }, [selectedProcId, selectedLocationId, fetchData]);
 
   // Transformed comparison data for Recharts bar chart
-  const barChartData = comparison.map(item => {
-    const totalExpected = item.usage.reduce((sum, u) => sum + u.expectedTotal, 0);
-    const totalActual = item.usage.reduce((sum, u) => sum + u.actualTotal, 0);
-    return {
-      name: `${item.cabinetName} (${item.procedureName})`,
-      Норматив: totalExpected,
-      Факт: totalActual,
-    };
-  });
+  const barChartData = useMemo(() => {
+    return comparison.map(item => {
+      const totalExpected = item.usage.reduce((sum, u) => sum + u.expectedTotal, 0);
+      const totalActual = item.usage.reduce((sum, u) => sum + u.actualTotal, 0);
+      return {
+        name: `${item.cabinetName} (${item.procedureName})`,
+        Норматив: totalExpected,
+        Факт: totalActual,
+      };
+    });
+  }, [comparison]);
 
-  const totalViolations = comparison.reduce((sum, item) => {
-    return sum + item.usage.filter(u => u.isViolation).length;
-  }, 0);
+  const totalViolations = useMemo(() => {
+    return comparison.reduce((sum, item) => {
+      return sum + item.usage.filter(u => u.isViolation).length;
+    }, 0);
+  }, [comparison]);
+
+  const totalPerformed = useMemo(() => {
+    return comparison.reduce((sum, item) => sum + item.timesPerformed, 0);
+  }, [comparison]);
 
   return (
     <>
@@ -223,8 +235,23 @@ export default memo(function ProceduresPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl p-6 border border-slate-100">
+              <Skeleton className="h-6 w-36 mb-4" />
+              <Skeleton variant="rect" count={3} className="h-28" />
+            </div>
+          </div>
+          <div className="lg:col-span-2 space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton variant="rect" className="h-20" />
+              <Skeleton variant="rect" className="h-20" />
+            </div>
+            <div className="bg-white rounded-2xl p-6 border border-slate-100">
+              <Skeleton className="h-6 w-48 mb-6" />
+              <Skeleton variant="rect" className="h-64" />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -277,9 +304,7 @@ export default memo(function ProceduresPage() {
                 <div className="p-3 bg-cyan-50 rounded-xl"><TrendingUp className="w-6 h-6 text-cyan-600" /></div>
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Проведено процедур</p>
-                  <p className="text-2xl font-bold text-cyan-600">
-                    {comparison.reduce((sum, item) => sum + item.timesPerformed, 0)}
-                  </p>
+                  <p className="text-2xl font-bold text-cyan-600">{totalPerformed}</p>
                 </div>
               </div>
             </div>
@@ -306,49 +331,58 @@ export default memo(function ProceduresPage() {
               </div>
             )}
 
-            {/* Detailed Comparisons / Deviations */}
+            {/* Detailed Comparisons List */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
               <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" /> Контроль расхода по кабинетам
+                <Activity className="w-5 h-5 text-cyan-600" /> Детальный аудит расхождения норм
               </h2>
-              <div className="space-y-4">
-                {comparison.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">Пока нет зарегистрированных списаний</p>
-                ) : (
-                  comparison.map((item, idx) => (
-                    <div key={idx} className="border border-slate-100 rounded-xl overflow-hidden">
-                      <div className="bg-slate-50 px-4 py-3 flex justify-between items-center border-b border-slate-100 flex-wrap gap-2">
+              {comparison.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">Нет данных о проведённых процедурах</p>
+              ) : (
+                <div className="space-y-6">
+                  {comparison.map((item, idx) => (
+                    <div key={idx} className="border border-slate-100 rounded-2xl p-5 bg-slate-50/50">
+                      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                         <div>
-                          <span className="font-semibold text-slate-800 text-sm">{item.cabinetName}</span>
-                          <span className="text-slate-400 text-xs mx-2">|</span>
-                          <span className="text-xs text-slate-600 font-medium bg-white px-2 py-0.5 rounded border border-slate-200">{item.procedureName}</span>
+                          <h3 className="font-bold text-slate-800">{item.cabinetName}</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Процедура: <span className="font-semibold">{item.procedureName}</span> | Проведено: {item.timesPerformed} раз(а)
+                          </p>
                         </div>
-                        <span className="text-xs text-slate-500">Проведено: <b>{item.timesPerformed} раз(а)</b></span>
                       </div>
-                      <div className="p-4 space-y-3">
+                      <div className="space-y-3">
                         {item.usage.map((use, uIdx) => (
-                          <div key={uIdx} className="flex justify-between items-center text-sm flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                              <span className="text-slate-700 font-medium">{use.medicationName}</span>
+                          <div key={uIdx} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between flex-wrap gap-4 text-sm">
+                            <div>
+                              <p className="font-semibold text-slate-800">{use.medicationName}</p>
+                              <p className="text-xs text-slate-400 mt-1">Допуск: ±{use.tolerancePercent}% (от {use.minAllowed} до {use.maxAllowed} шт.)</p>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-xs text-slate-500">Норма: {use.expectedTotal}</span>
-                              <span className={`font-semibold px-2 py-0.5 rounded text-xs ${
-                                use.isViolation
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : 'bg-emerald-100 text-emerald-700'
-                              }`}>
-                                Факт: {use.actualTotal} {use.isViolation ? '⚠️ Перерасход/Недорасход' : '✅ Ок'}
-                              </span>
+                            <div className="flex gap-6 items-center">
+                              <div className="text-right">
+                                <p className="text-xs text-slate-400">Должно быть</p>
+                                <p className="font-bold text-slate-600">{use.expectedTotal} шт.</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-slate-400">Фактический расход</p>
+                                <p className="font-bold text-slate-800">{use.actualTotal} шт.</p>
+                              </div>
+                              {use.isViolation ? (
+                                <span className="px-3 py-1 text-xs font-bold text-rose-700 bg-rose-100 rounded-full flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Превышение!
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 text-xs font-bold text-emerald-700 bg-emerald-100 rounded-full flex items-center gap-1">
+                                  <CheckCircle className="w-3.5 h-3.5" /> В норме
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -359,129 +393,119 @@ export default memo(function ProceduresPage() {
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-100">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Создать процедуру</h3>
+              <h3 className="text-xl font-bold text-slate-800">Создать шаблон процедуры</h3>
               <button onClick={() => setShowNewProc(false)} className="text-slate-400 hover:text-slate-600"><X /></button>
             </div>
-
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Название процедуры *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Название *</label>
                 <input
                   type="text"
                   value={newProcName}
                   onChange={e => setNewProcName(e.target.value)}
-                  placeholder="Пломбирование зуба"
+                  placeholder="Например, Пломбирование световой пломбой"
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Описание / Примечание</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-slate-700 mb-1">Описание</label>
+                <textarea
                   value={newProcDesc}
                   onChange={e => setNewProcDesc(e.target.value)}
-                  placeholder="Стандартное пломбирование светоотверждаемым композитом"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="Краткое описание этапов процедуры..."
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
                 />
               </div>
 
-              {/* Norms List */}
-              <div className="pt-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Состав норматива</label>
+              {/* Norms config */}
+              <div className="border-t border-slate-100 pt-4">
+                <label className="block text-sm font-bold text-slate-800 mb-2">Нормативы расхода препаратов</label>
                 
-                {/* Medication Search */}
-                <div className="relative mb-3">
+                {/* Search input for medications */}
+                <div className="relative mb-4">
                   <input
                     type="text"
                     value={medSearch}
                     onChange={e => setMedSearch(e.target.value)}
-                    placeholder="Поиск препарата для добавления..."
+                    placeholder="Начните вводить название препарата..."
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                   {searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl mt-1 shadow-lg max-h-48 overflow-y-auto z-10">
-                      {searchResults.map(m => (
+                    <div className="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl mt-1 shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {searchResults.map(med => (
                         <div
-                          key={m.id}
-                          onClick={() => addNorm(m)}
-                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 flex justify-between"
+                          key={med.id}
+                          onClick={() => addNorm(med)}
+                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm font-medium text-slate-800"
                         >
-                          <span>{m.name}</span>
-                          <span className="text-xs text-cyan-600 font-medium">Добавить</span>
+                          {med.name}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
+                {/* List of configured norms */}
                 <div className="space-y-3">
-                  {newProcNorms.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">Препараты еще не добавлены</p>
-                  ) : (
-                    newProcNorms.map(norm => (
-                      <div key={norm.medicationId} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <span className="text-sm font-medium text-slate-700 flex-1 truncate">{norm.name}</span>
-                        <div className="flex items-center gap-2">
+                  {newProcNorms.map((norm, index) => (
+                    <div key={norm.medicationId} className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-between gap-3 text-xs">
+                      <span className="font-semibold text-slate-800 flex-1 truncate">{norm.name}</span>
+                      <div className="flex gap-2 items-center">
+                        <div className="w-20">
+                          <label className="block text-[10px] text-slate-400 mb-0.5">Кол-во (шт)</label>
                           <input
                             type="number"
-                            min={0.1}
-                            step={0.1}
+                            min={1}
                             value={norm.expectedQuantity}
                             onChange={e => {
-                              const val = Number(e.target.value);
-                              setNewProcNorms(newProcNorms.map(n => n.medicationId === norm.medicationId ? { ...n, expectedQuantity: val } : n));
+                              const updated = [...newProcNorms];
+                              updated[index].expectedQuantity = Number(e.target.value);
+                              setNewProcNorms(updated);
                             }}
-                            className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-xs text-center"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                           />
-                          <span className="text-xs text-slate-400">шт.</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">Погрешность:</span>
+                        <div className="w-20">
+                          <label className="block text-[10px] text-slate-400 mb-0.5">Допуск (±%)</label>
                           <input
                             type="number"
                             min={0}
                             max={100}
                             value={norm.tolerancePercent}
                             onChange={e => {
-                              const val = Number(e.target.value);
-                              setNewProcNorms(newProcNorms.map(n => n.medicationId === norm.medicationId ? { ...n, tolerancePercent: val } : n));
+                              const updated = [...newProcNorms];
+                              updated[index].tolerancePercent = Number(e.target.value);
+                              setNewProcNorms(updated);
                             }}
-                            className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-xs text-center"
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                           />
-                          <span className="text-xs text-slate-400">%</span>
                         </div>
                         <button
                           onClick={() => removeNorm(norm.medicationId)}
-                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                          className="p-1 text-slate-400 hover:text-rose-600 mt-4"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {newProcError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {newProcError}
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {newProcError}
                 </div>
               )}
             </div>
-
             <div className="p-6 pt-0 flex gap-3">
-              <button
-                onClick={() => setShowNewProc(false)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium"
-              >
+              <button onClick={() => setShowNewProc(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium">
                 Отмена
               </button>
-              <button
-                onClick={handleCreateProcedure}
-                disabled={savingProc}
-                className="flex-1 px-4 py-2.5 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-              >
+              <button onClick={handleCreateProcedure} disabled={savingProc}
+                className="flex-1 px-4 py-2.5 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 {savingProc ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Создать
               </button>
@@ -490,67 +514,61 @@ export default memo(function ProceduresPage() {
         </div>
       )}
 
-      {/* Log Procedure (Perform) Modal */}
+      {/* Log Procedure Modal */}
       {showLogProc && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-100">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800">Провести процедуру</h3>
+              <h3 className="text-xl font-bold text-slate-800">Провести процедуру пациенту</h3>
               <button onClick={() => setShowLogProc(false)} className="text-slate-400 hover:text-slate-600"><X /></button>
             </div>
-
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Процедура *</label>
-                <select
-                  value={selectedProcId}
-                  onChange={e => setSelectedProcId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                >
-                  <option value="">Выберите процедуру...</option>
-                  {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Кабинет лечения (Локация) *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Кабинет / Локация *</label>
                 <select
                   value={selectedLocationId}
                   onChange={e => setSelectedLocationId(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 >
-                  <option value="">Выберите кабинет...</option>
+                  <option value="">Выберите...</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
 
-              {logError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {logError}
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Тип проводимой процедуры *</label>
+                <select
+                  value={selectedProcId}
+                  onChange={e => setSelectedProcId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="">Выберите...</option>
+                  {procedures.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-1.5">Расходные материалы будут автоматически списаны из выбранного кабинета в соответствии с нормативом.</p>
+              </div>
 
               {logSuccess && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" /> Списание на процедуру успешно проведено!
+                  <CheckCircle className="w-4 h-4 text-emerald-600" /> Процедура успешно проведена, лекарства списаны.
+                </div>
+              )}
+
+              {logError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {logError}
                 </div>
               )}
             </div>
-
             <div className="p-6 pt-0 flex gap-3">
-              <button
-                onClick={() => setShowLogProc(false)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium"
-              >
+              <button onClick={() => setShowLogProc(false)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium">
                 Отмена
               </button>
-              <button
-                onClick={handleLogProcedure}
-                disabled={loggingProc}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-              >
+              <button onClick={handleLogProcedure} disabled={loggingProc}
+                className="flex-1 px-4 py-2.5 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium flex items-center justify-center gap-2">
                 {loggingProc ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Списать по нормативу
+                Провести и списать
               </button>
             </div>
           </div>

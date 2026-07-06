@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, memo } from 'react';
 import { api } from '../api';
 import { Package, AlertTriangle, TrendingUp, DollarSign, Download, Calendar } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import Skeleton from '../components/Skeleton';
 
 const Dashboard = memo(function Dashboard() {
   const [data, setData] = useState<any>(null);
@@ -27,7 +28,7 @@ const Dashboard = memo(function Dashboard() {
 
         const [dashRes, procRes] = await Promise.all([
           api.get(`/dashboard/metrics${query}`),
-          api.get('/procedures/compare') // FIX: was /procedures/comparison (wrong URL)
+          api.get('/procedures/compare')
         ]);
 
         setData(dashRes.data);
@@ -37,7 +38,7 @@ const Dashboard = memo(function Dashboard() {
           const expected = p.usage.reduce((sum: number, u: any) => sum + u.expectedTotal, 0);
           const actual = p.usage.reduce((sum: number, u: any) => sum + u.actualTotal, 0);
           return {
-            name: p.cabinetName || p.procedureName, // use cabinetName
+            name: p.cabinetName || p.procedureName,
             Норматив: expected,
             Факт: actual,
           };
@@ -75,12 +76,45 @@ const Dashboard = memo(function Dashboard() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
+      <div className="p-8 space-y-6 w-full max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-44" />
+            <Skeleton className="h-10 w-28" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Skeleton variant="rect" count={4} className="h-28" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700">
+              <Skeleton className="h-6 w-36 mb-6" />
+              <Skeleton variant="rect" className="h-64" />
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700">
+              <Skeleton className="h-6 w-48 mb-6" />
+              <Skeleton variant="rect" className="h-80" />
+            </div>
+          </div>
+          <div className="space-y-8">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700">
+              <Skeleton className="h-6 w-36 mb-6" />
+              <Skeleton variant="text" count={6} className="h-12" />
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-100 dark:border-slate-700">
+              <Skeleton className="h-6 w-36 mb-6" />
+              <Skeleton variant="text" count={6} className="h-12" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
-
 
   return (
     <>
