@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, Button, Alert } from 'react-native';
 import { Camera, CameraView } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from './api_service';
+import { api } from '../services/api_service';
 
 export default function BarcodeScanner() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
