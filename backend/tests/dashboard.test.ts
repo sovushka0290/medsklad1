@@ -28,6 +28,7 @@ import { prisma } from '../src/lib/prisma';
 import dashboardRoutes from '../src/routes/dashboard.routes';
 import jwt from 'jsonwebtoken';
 import { config } from '../src/config';
+import * as dashboardService from '../src/services/dashboard.service';
 
 const app = express();
 app.use(express.json());

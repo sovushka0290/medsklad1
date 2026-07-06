@@ -1,0 +1,58 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: medsklad
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: medsklad_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./backend
+      run: npm ci
+      
+    - name: Generate Prisma Client
+      working-directory: ./backend
+      run: npx prisma generate
+      
+    - name: Run Prisma Migrations
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://medsklad:test_password@localhost:5432/medsklad_test?schema=public
+      run: npx prisma migrate deploy
+
+    - name: Run Tests
+      working-directory: ./backend
+      env:
+        DATABASE_URL: postgresql://medsklad:test_password@localhost:5432/medsklad_test?schema=public
+        JWT_SECRET: testing_secret_key_needs_to_be_long
+        REFRESH_TOKEN_SECRET: testing_refresh_secret_key_needs_to_be_long
+      run: npm test

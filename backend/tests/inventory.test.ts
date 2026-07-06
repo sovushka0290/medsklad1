@@ -122,7 +122,7 @@ describe('Inventory Controller Tests', () => {
     (prisma.inventoryItem.update as jest.Mock).mockResolvedValue({ id: 10, actualQuantity: 9, difference: -1 });
 
     const res = await request(app)
-      .post('/api/inventory/1/adjust')
+      .put('/api/inventory/1/adjust')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ barcode: '123', quantityAdjustment: 1 });
 

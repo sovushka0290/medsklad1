@@ -18,6 +18,10 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
   if (startDate && endDate) {
     dateFrom = new Date(startDate);
     dateTo = new Date(endDate);
+<<<<<<< HEAD
+=======
+    dateTo.setHours(23, 59, 59, 999);
+>>>>>>> c79c4cada72b9906ae888aba688f6412f470d5ea
   } else {
     switch (filter) {
       case 'today':
@@ -69,8 +73,12 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
       SELECT DATE(t."createdAt") as date, CAST(SUM(t."quantity") AS FLOAT) as total
       FROM "Transaction" t
       WHERE t.type IN ('OUTFLOW', 'WRITE_OFF')
+<<<<<<< HEAD
         AND t."createdAt" >= ${dateFrom}
         AND t."createdAt" <= ${dateTo}
+=======
+        AND t."createdAt" >= ${dateFrom} AND t."createdAt" <= ${dateTo}
+>>>>>>> c79c4cada72b9906ae888aba688f6412f470d5ea
       GROUP BY DATE(t."createdAt")
       ORDER BY DATE(t."createdAt") ASC;
     `,

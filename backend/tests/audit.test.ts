@@ -66,6 +66,7 @@ describe('Audit Log Middleware Tests', () => {
     
     await finishCallback();
 
+    // @ts-ignore
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: {
         userId: 10,
