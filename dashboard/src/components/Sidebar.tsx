@@ -2,7 +2,7 @@ import { memo, useCallback, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileUp, LogOut, Package,
-  FileSpreadsheet, Activity, ShieldAlert
+  FileSpreadsheet, Activity
 } from 'lucide-react';
 
 interface User {

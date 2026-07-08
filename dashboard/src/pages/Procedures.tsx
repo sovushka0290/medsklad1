@@ -81,9 +81,9 @@ export default memo(function ProceduresPage() {
         api.get('/locations'),
         api.get('/procedures/compare'),
       ]);
-      setProcedures(procRes.data || []);
+      setProcedures(procRes.data?.data || []);
       setLocations(locRes.data || []);
-      setComparison(compRes.data || []);
+      setComparison(compRes.data?.data || []);
     } catch (err) {
       console.error(err);
     } finally {

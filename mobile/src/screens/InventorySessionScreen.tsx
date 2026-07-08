@@ -21,9 +21,8 @@ export default function InventorySessionScreen({ navigation }: any) {
 
   const startSession = async () => {
     try {
-      // 1 is default location. In a real app we'd let them pick
       const res = await api.post('/inventory/start', { locationId: 1 });
-      setSessionId(res.data.data.id);
+      setSessionId(res.data.id);
     } catch (e) {
       Alert.alert('Ошибка', 'Не удалось начать инвентаризацию');
       navigation.goBack();
@@ -60,7 +59,7 @@ export default function InventorySessionScreen({ navigation }: any) {
     try {
       await api.put(`/inventory/${sessionId}/scan`, {
         barcode: scannedItem,
-        actualQuantity: qty
+        quantityToAdd: qty
       });
       
       setScannedList(prev => [{ barcode: scannedItem, qty }, ...prev]);

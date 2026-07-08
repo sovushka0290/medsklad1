@@ -34,7 +34,8 @@ const Dashboard = memo(function Dashboard() {
         setData(dashRes.data);
         
         // Transform procedure comparison data for BarChart (grouped by Cabinet)
-        const transformedProcData = procRes.data.map((p: any) => {
+        const compareData = procRes.data?.data || [];
+        const transformedProcData = compareData.map((p: any) => {
           const expected = p.usage.reduce((sum: number, u: any) => sum + u.expectedTotal, 0);
           const actual = p.usage.reduce((sum: number, u: any) => sum + u.actualTotal, 0);
           return {

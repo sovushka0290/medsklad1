@@ -34,11 +34,10 @@ export default function InventoryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
   const fetchInventory = async () => {
     try {
       const response = await api.get('/inventory');
-      setItems(response.data.data || []);
+      setItems(response.data?.data || response.data || []);
     } catch (error: any) {
       if (error.code !== 'ECONNABORTED' && error.response) {
         Alert.alert('Ошибка', 'Не удалось загрузить данные склада');

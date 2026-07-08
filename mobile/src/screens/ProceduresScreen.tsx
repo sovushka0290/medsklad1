@@ -34,9 +34,9 @@ export default function ProceduresScreen() {
         api.get('/procedures'),
         api.get('/locations')
       ]);
-      setProcedures(procRes.data.data);
-      if (locRes.data.data.length > 0) {
-        setDefaultLocId(locRes.data.data[0].id);
+      setProcedures(procRes.data?.data || []);
+      if (locRes.data && locRes.data.length > 0) {
+        setDefaultLocId(locRes.data[0].id);
       }
     } catch (e) {
       console.error(e);

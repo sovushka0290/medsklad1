@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import { api } from '../api';
 import {
-  FileSpreadsheet, ArrowDown, ArrowUp, RotateCcw, Trash2,
-  Calendar, Download, Loader2, ShieldCheck, History, AlertTriangle, AlertCircle,
-  Package, DollarSign, Activity, AlertOctagon, TrendingUp
+  ArrowDown, ArrowUp, RotateCcw, Trash2,
+  Calendar, Download, ShieldCheck, History, AlertCircle,
+  Package, DollarSign, Activity, AlertOctagon
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 
