@@ -2,13 +2,20 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 
-// Dynamic API URL for Expo to avoid hardcoding local IP addresses
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+// Use EXPO_PUBLIC_API_URL or fallback to render
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://medsklad1.onrender.com/api';
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000, // 10-second timeout to prevent indefinite hangs
+  timeout: 60000, // 60-second timeout for Render free tier cold starts
 });
+
+let isAlertShown = false;
+const showAlert = (title: string, message: string) => {
+  if (isAlertShown) return;
+  isAlertShown = true;
+  Alert.alert(title, message, [{ text: 'OK', onPress: () => { isAlertShown = false; } }]);
+};
 
 api.interceptors.request.use(async (config) => {
   const token = await SecureStore.getItemAsync('accessToken');
@@ -27,12 +34,12 @@ api.interceptors.response.use((response) => {
   
   // Handle request timeouts and connection drops
   if (error.code === 'ECONNABORTED') {
-    Alert.alert(
+    showAlert(
       'Превышено время ожидания',
-      'Сервер не ответил вовремя. Проверьте интернет-соединение.'
+      'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.'
     );
   } else if (!error.response) {
-    Alert.alert(
+    showAlert(
       'Ошибка сети',
       'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
     );
@@ -47,7 +54,7 @@ api.interceptors.response.use((response) => {
         return Promise.reject(error);
       }
 
-      const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 5000 });
+      const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 60000 });
       
       if (response.data?.success) {
         const { token, refreshToken: newRefreshToken } = response.data.data;

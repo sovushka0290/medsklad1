@@ -28,8 +28,8 @@ const app = express();
 // Performance Optimization
 app.use(compression());
 
-// Базовые Middleware (лимит 10kb для защиты от oversized payload)
-app.use(express.json({ limit: '10kb' }));
+// Базовые Middleware (лимит 50mb для загрузки фото)
+app.use(express.json({ limit: '50mb' }));
 
 // Security Middlewares
 app.use(helmet({
