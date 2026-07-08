@@ -155,7 +155,17 @@ export default function BarcodeScanner() {
       const response = await api.post('/ai/recognize', { image: base64 });
       const { text, confidence, medication } = response.data.data;
       
-      if (medication) {
+      if (confidence < 80) {
+        Alert.alert(
+          'Низкая уверенность ИИ', 
+          `Распознано: ${text}\nУверенность: ${confidence}%\n\nИИ не уверен в результате. Пожалуйста, введите данные вручную.`,
+          [{ text: 'Понятно', onPress: () => {
+             setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
+             setBarcode('Распознано ИИ (низкая уверенность)');
+             setModalVisible(true);
+          }}]
+        );
+      } else if (medication) {
         setMedication(medication);
         setBarcode(medication.barcode || 'Распознано ИИ');
         setModalVisible(true);

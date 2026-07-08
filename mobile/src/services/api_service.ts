@@ -33,16 +33,44 @@ api.interceptors.response.use((response) => {
   const originalRequest = error.config;
   
   // Handle request timeouts and connection drops
-  if (error.code === 'ECONNABORTED') {
-    showAlert(
-      'Превышено время ожидания',
-      'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.'
-    );
-  } else if (!error.response) {
-    showAlert(
-      'Ошибка сети',
-      'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
-    );
+  if (error.code === 'ECONNABORTED' || !error.response) {
+    if (
+      originalRequest.method?.toLowerCase() === 'post' && 
+      originalRequest.url?.includes('/transactions') &&
+      !originalRequest.headers['X-Sync-Retry']
+    ) {
+      const { enqueueTransaction } = require('./offline_queue');
+      
+      // Parse data if it's a string (axios config.data is often stringified)
+      let parsedData = originalRequest.data;
+      try {
+        if (typeof parsedData === 'string') {
+          parsedData = JSON.parse(parsedData);
+        }
+      } catch (e) {}
+      
+      enqueueTransaction(originalRequest.url, originalRequest.method, parsedData);
+      
+      showAlert(
+        'Отсутствует сеть',
+        'Операция сохранена локально и будет отправлена при появлении интернета.'
+      );
+      
+      // Resolve so UI thinks it succeeded
+      return Promise.resolve({ data: { success: true, offline: true } });
+    }
+
+    if (error.code === 'ECONNABORTED') {
+      showAlert(
+        'Превышено время ожидания',
+        'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.'
+      );
+    } else {
+      showAlert(
+        'Ошибка сети',
+        'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
+      );
+    }
   }
   
   if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/login' && originalRequest.url !== '/auth/refresh') {
