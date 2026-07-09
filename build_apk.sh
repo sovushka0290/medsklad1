@@ -24,8 +24,8 @@ echo "Это займет около 10 минут. Ссылка на скачи
 echo ""
 
 cd mobile
-export EXPO_TOKEN=Uomw4MQI4lA4IXnNxAyFNHltXZkOEQkTSv6KojUW
+export EXPO_TOKEN=uFrtxk7oiik0rUj6R7j-NrjwgvRLkgzcHqkP_d9S
 
 # Используем профиль preview, так как в eas.json именно он настроен на сборку APK, 
 # в то время как production собирает AAB (App Bundle для Google Play).
-npx eas-cli build --profile preview -p android --non-interactive
+npx eas-cli build --profile preview -p android
