@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Начало очистки старых данных...');
+  await prisma.inventoryItem.deleteMany();
+  await prisma.inventorySession.deleteMany();
   await prisma.batch.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.medication.deleteMany();
