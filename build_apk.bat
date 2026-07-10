@@ -3,28 +3,16 @@ chcp 65001 >nul
 echo ===============================================================
 echo 🚀 СКРИПТ АВТОМАТИЧЕСКОЙ СБОРКИ APK ДЛЯ MEDSKLAD (RENDER)
 echo ===============================================================
-echo 🔍 Попытка автоматического получения URL бэкенда с Render API...
-for /f "delims=" %%i in ('node get_render_url.js') do set RENDER_URL=%%i
+echo 🔍 Определение URL бэкенда...
+set BACKEND_URL=https://backend-steel-sigma.vercel.app
+echo По умолчанию используется бэкенд на Vercel: %BACKEND_URL%
+set /p USER_URL="Нажмите Enter для подтверждения или введите другую ссылку: "
 
-if "%RENDER_URL%"=="" (
-  echo ⚠️  Не удалось определить URL бэкенда автоматически.
-  echo Пожалуйста, введите ссылку на ваш бекенд с Render вручную.
-  echo Пример: https://medsklad-backend-a1b2.onrender.com
-  echo.
-  set /p RENDER_URL="Ссылка на бекенд: "
-) else (
-  echo ✅ Успешно определен URL бэкенда: %RENDER_URL%
-)
-
-if "%RENDER_URL%"=="" (
-  echo Ошибка: Ссылка на бекенд не может быть пустой!
-  pause
-  exit /b 1
-)
+if not "%USER_URL%"=="" set BACKEND_URL=%USER_URL%
 
 echo.
 echo 📝 Создание файла конфигурации .env...
-echo EXPO_PUBLIC_API_URL=%RENDER_URL%/api> mobile/.env
+echo EXPO_PUBLIC_API_URL=%BACKEND_URL%/api> mobile/.env
 echo Файл mobile/.env успешно обновлен.
 
 echo.
