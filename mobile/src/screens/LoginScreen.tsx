@@ -64,8 +64,11 @@ export default function LoginScreen({ navigation }: any) {
         if (response.data.data.user?.role) {
           await SecureStore.setItemAsync('userRole', response.data.data.user.role);
         }
-        
-        await registerForPushNotificationsAsync();
+        try {
+          await registerForPushNotificationsAsync();
+        } catch (pushError) {
+          console.warn('Failed to register push notifications:', pushError);
+        }
         navigation.replace('Main');
       } else {
         setErrorMessage('Неверные данные для входа');
