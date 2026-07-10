@@ -2,13 +2,20 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 
-// Dynamic API URL for Expo to avoid hardcoding local IP addresses
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
+// Use EXPO_PUBLIC_API_URL or fallback to render
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://medsklad1.onrender.com/api';
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 35000, // 35-second timeout to allow Render container to wake up (cold start)
+  timeout: 60000, // 60-second timeout for server cold starts
 });
+
+let isAlertShown = false;
+const showAlert = (title: string, message: string) => {
+  if (isAlertShown) return;
+  isAlertShown = true;
+  Alert.alert(title, message, [{ text: 'OK', onPress: () => { isAlertShown = false; } }]);
+};
 
 api.interceptors.request.use(async (config) => {
   const token = await SecureStore.getItemAsync('accessToken');
@@ -27,17 +34,47 @@ api.interceptors.response.use((response) => {
   const skipAlerts = originalRequest?.skipErrorAlerts;
   
   // Handle request timeouts and connection drops
-  if (!skipAlerts) {
-    if (error.code === 'ECONNABORTED') {
-      Alert.alert(
-        'Превышено время ожидания',
-        'Сервер не ответил вовремя. Проверьте интернет-соединение.'
-      );
-    } else if (!error.response) {
-      Alert.alert(
-        'Ошибка сети',
-        'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
-      );
+  if (error.code === 'ECONNABORTED' || !error.response) {
+    if (
+      originalRequest.method?.toLowerCase() === 'post' && 
+      originalRequest.url?.includes('/transactions') &&
+      !originalRequest.headers['X-Sync-Retry']
+    ) {
+      const { enqueueTransaction } = require('./offline_queue');
+      
+      // Parse data if it's a string (axios config.data is often stringified)
+      let parsedData = originalRequest.data;
+      try {
+        if (typeof parsedData === 'string') {
+          parsedData = JSON.parse(parsedData);
+        }
+      } catch (e) {}
+      
+      enqueueTransaction(originalRequest.url, originalRequest.method, parsedData);
+      
+      if (!skipAlerts) {
+        showAlert(
+          'Отсутствует сеть',
+          'Операция сохранена локально и будет отправлена при появлении интернета.'
+        );
+      }
+      
+      // Resolve so UI thinks it succeeded
+      return Promise.resolve({ data: { success: true, offline: true } });
+    }
+
+    if (!skipAlerts) {
+      if (error.code === 'ECONNABORTED') {
+        showAlert(
+          'Превышено время ожидания',
+          'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.'
+        );
+      } else {
+        showAlert(
+          'Ошибка сети',
+          'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
+        );
+      }
     }
   }
   
@@ -50,7 +87,7 @@ api.interceptors.response.use((response) => {
         return Promise.reject(error);
       }
 
-      const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 5000 });
+      const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 60000 });
       
       if (response.data?.success) {
         const { token, refreshToken: newRefreshToken } = response.data.data;

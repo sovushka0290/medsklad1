@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
+    "build": "npx prisma generate && tsc",
     "postinstall": "prisma generate",
     "start": "npx prisma db push --accept-data-loss && npx prisma db seed && node dist/src/index.js",
     "test": "jest --runInBand"
@@ -59,6 +59,6 @@
     "typescript": "^5.4.5"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node dist/prisma/seed.js"
   }
 }

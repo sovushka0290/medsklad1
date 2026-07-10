@@ -27,25 +27,6 @@ flutter pub get
 flutter run
 ```
 
-## API Endpoints
-
-Ниже приведена таблица основных эндпоинтов. Подробное описание всех методов, параметров и ответов доступно в файле `swagger.yaml`.
-
-| Endpoint | Метод | Описание | Роли (x-role-guard) |
-|----------|-------|----------|---------------------|
-| `/api/auth/login` | POST | Авторизация пользователя | Все |
-| `/api/auth/refresh` | POST | Обновление токена | Все |
-| `/api/medications` | POST | Создание нового медикамента | ADMIN, STOREKEEPER |
-| `/api/inventory/start` | POST | Начать сессию инвентаризации | ADMIN, STOREKEEPER, HEAD_NURSE |
-| `/api/inventory/active` | GET | Получить активные сессии | ADMIN, STOREKEEPER, HEAD_NURSE, MANAGER |
-| `/api/inventory/history` | GET | Получить закрытые сессии | ADMIN, STOREKEEPER, HEAD_NURSE, MANAGER |
-| `/api/inventory/:id/scan` | PUT | Сканировать товар (добавить кол-во) | ADMIN, STOREKEEPER, HEAD_NURSE |
-| `/api/inventory/:id/adjust` | PUT | Корректировка количества товара | ADMIN, STOREKEEPER, HEAD_NURSE |
-| `/api/inventory/:id/close` | POST | Закрыть сессию инвентаризации | ADMIN, STOREKEEPER, HEAD_NURSE |
-| `/api/procedures/comparison` | GET | Сравнение расхода и норм процедур | ADMIN, MANAGER, HEAD_NURSE |
-| `/api/dashboard` | GET | Ключевые метрики (?filter=today/week/month) | ADMIN, MANAGER |
-
-<<<<<<< HEAD
 ## Ключевые возможности
 - **Инвентаризация и сканирование штрихкодов**
 - **ИИ-распознавание медикаментов**
@@ -64,6 +45,8 @@ flutter run
 
 ## API Endpoints
 
+Ниже приведена таблица основных эндпоинтов. Подробное описание всех методов, параметров и ответов доступно в файле `swagger.yaml`. Для тестирования API можно использовать импорт `swagger.yaml` в Postman или Swagger UI.
+
 | Метод | Путь | Описание | Роли | Параметры / Тело |
 |---|---|---|---|---|
 | **POST** | `/api/auth/login` | Вход в систему | Все | `{ email, password }` |
@@ -79,7 +62,3 @@ flutter run
 | **POST** | `/api/inventory/:id/adjust` | Корректировка количества позиции | `ADMIN`, `STOREKEEPER`, `HEAD_NURSE` | `{ barcode, quantityAdjustment }` |
 | **GET** | `/api/procedures/comparison` | Сравнение расхода Факт/Норма | `ADMIN`, `HEAD_NURSE` | - |
 | **GET** | `/api/dashboard/metrics` | Статистика склада с фильтром по датам | `ADMIN`, `MANAGER`, `HEAD_NURSE`, `STOREKEEPER` | `filter`, `startDate`, `endDate` |
-
-=======
-Для тестирования API можно использовать импорт `swagger.yaml` в Postman или Swagger UI.
->>>>>>> c3ab6ea257cdd60b4926c44388ac86496362e606

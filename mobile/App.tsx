@@ -4,6 +4,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import NetInfo from '@react-native-community/netinfo';
+import { getOfflineQueue, dequeueTransaction } from './src/services/offline_queue';
+import { api } from './src/services/api_service';
 
 import LoginScreen from './src/screens/LoginScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
@@ -42,7 +45,35 @@ export default function App() {
       }
     };
     initApp();
+
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected) {
+        syncOfflineQueue();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  const syncOfflineQueue = async () => {
+    const queue = await getOfflineQueue();
+    if (queue.length === 0) return;
+    
+    for (const tx of queue) {
+      try {
+        if (tx.method.toLowerCase() === 'post') {
+          await api.post(tx.url, tx.data, { headers: { 'X-Sync-Retry': 'true' } });
+        }
+        await dequeueTransaction(tx.id);
+      } catch (e: any) {
+        // If it's a 4xx error (e.g. bad request), we might want to dequeue it to avoid blocking forever,
+        // but for ECONNABORTED we leave it in the queue.
+        if (e.response && e.response.status >= 400 && e.response.status < 500) {
+           await dequeueTransaction(tx.id);
+        }
+      }
+    }
+  };
 
   if (!initialRoute) return null; // Show splash screen or loading here
 

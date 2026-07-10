@@ -31,7 +31,7 @@ echo "Это займет около 10 минут. Ссылка на скачи
 echo ""
 
 cd mobile
-export EXPO_TOKEN=Uomw4MQI4lA4IXnNxAyFNHltXZkOEQkTSv6KojUW
+export EXPO_TOKEN=uFrtxk7oiik0rUj6R7j-NrjwgvRLkgzcHqkP_d9S
 export ANDROID_HOME=/home/megumin/android-sdk-local
 export JAVA_HOME=/home/megumin/jdk-17
 export PATH=$JAVA_HOME/bin:$PATH

@@ -87,6 +87,7 @@ model Batch {
   @@index([medicationId])
   @@index([locationId])
   @@index([locationId, medicationId])
+  @@index([expirationDate])
 }
 
 enum TransactionType {
@@ -116,6 +117,7 @@ model Transaction {
   @@index([locationId, createdAt])
   @@index([type])
   @@index([createdAt])
+  @@index([reason])
 }
 
 model Procedure {
