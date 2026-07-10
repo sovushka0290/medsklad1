@@ -24,6 +24,7 @@ import { errorHandler } from './middleware/error.middleware';
 import { auditMiddleware } from './middleware/audit.middleware';
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Performance Optimization
 app.use(compression());

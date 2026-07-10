@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Alert, Modal, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, Alert, Modal, TouchableOpacity, TextInput, ActivityIndicator, Animated, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 type TransactionType = 'INCOME' | 'OUTFLOW' | 'RETURN' | 'WRITE_OFF';
 
 export default function BarcodeScanner() {
+  // 1. All hooks defined strictly at the top of the component
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -20,6 +21,32 @@ export default function BarcodeScanner() {
   const [quantity, setQuantity] = useState('1');
   const [type, setType] = useState<TransactionType>('OUTFLOW');
   const [submitting, setSubmitting] = useState(false);
+  
+  const cameraRef = useRef<any>(null);
+  const [recognizing, setRecognizing] = useState(false);
+  const [torch, setTorch] = useState(false);
+
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
+
+  // Running the scanner laser line animation
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineAnim, {
+          toValue: 270,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanLineAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [scanLineAnim]);
 
   useEffect(() => {
     const init = async () => {
@@ -72,7 +99,7 @@ export default function BarcodeScanner() {
     setSubmitting(true);
     try {
       const locResponse = await api.get('/locations');
-      const defaultLocId = locResponse.data.data[0]?.id || 1;
+      const defaultLocId = locResponse.data[0]?.id || 1;
 
       await api.post('/transactions', {
         type,
@@ -127,6 +154,7 @@ export default function BarcodeScanner() {
     setTimeout(() => setScanned(false), 500); 
   };
 
+  // 2. Conditional returns after all hook declarations
   if (!permission) {
     return (
       <View style={styles.container}>
@@ -154,9 +182,6 @@ export default function BarcodeScanner() {
   const allowOutflow = ['ADMIN', 'STOREKEEPER', 'NURSE', 'HEAD_NURSE'].includes(role);
   const allowReturn = ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(role);
   const allowWriteOff = ['ADMIN', 'HEAD_NURSE', 'NURSE'].includes(role);
-
-  const cameraRef = React.useRef<any>(null);
-  const [recognizing, setRecognizing] = useState(false);
 
   const takePhotoAndRecognize = async () => {
     if (!cameraRef.current) return;
@@ -196,27 +221,67 @@ export default function BarcodeScanner() {
     <View style={styles.container}>
       <CameraView
         ref={cameraRef}
+        enableTorch={torch}
         barcodeScannerSettings={{
           barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
         }}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         style={StyleSheet.absoluteFill}
       >
-        <View style={styles.cameraOverlay}>
-          <TouchableOpacity 
-            style={styles.aiButton} 
-            onPress={takePhotoAndRecognize}
-            disabled={recognizing}
-          >
-            {recognizing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="camera" size={24} color="#fff" />
-                <Text style={styles.aiButtonText}>Распознать по фото (ИИ)</Text>
-              </>
-            )}
-          </TouchableOpacity>
+        {/* Premium Dark Overlay Mask */}
+        <View style={styles.overlayContainer}>
+          <View style={styles.topBar}>
+            <Text style={styles.topBarTitle}>Сканирование</Text>
+            <TouchableOpacity 
+              style={[styles.torchButton, torch && styles.torchButtonActive]} 
+              onPress={() => setTorch(!torch)}
+            >
+              <Ionicons name={torch ? "flash" : "flash-outline"} size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.middleRow}>
+            <View style={styles.sideOverlay} />
+            <View style={styles.scannerTarget}>
+              {/* Corner borders for the target box */}
+              <View style={[styles.corner, styles.topLeft]} />
+              <View style={[styles.corner, styles.topRight]} />
+              <View style={[styles.corner, styles.bottomLeft]} />
+              <View style={[styles.corner, styles.bottomRight]} />
+              
+              {/* Red laser line animation */}
+              <Animated.View
+                style={[
+                  styles.scanLine,
+                  {
+                    transform: [{ translateY: scanLineAnim }]
+                  }
+                ]}
+              />
+            </View>
+            <View style={styles.sideOverlay} />
+          </View>
+
+          <View style={styles.bottomBar}>
+            <Text style={styles.scanInstructions}>
+              Наведите камеру на штрих-код или воспользуйтесь ИИ
+            </Text>
+            
+            <TouchableOpacity 
+              style={[styles.aiButton, recognizing && styles.aiButtonDisabled]} 
+              onPress={takePhotoAndRecognize}
+              disabled={recognizing}
+            >
+              {recognizing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="camera" size={24} color="#fff" />
+                  <Text style={styles.aiButtonText}>Распознать по фото (ИИ)</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </CameraView>
 
@@ -327,46 +392,164 @@ export default function BarcodeScanner() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'center',
     backgroundColor: '#000',
   },
-  cameraOverlay: {
+  overlayContainer: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(9, 26, 46, 0.3)',
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingTop: Platform.OS === 'ios' ? 60 : 44,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    backgroundColor: 'rgba(9, 26, 46, 0.75)',
+  },
+  topBarTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  torchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  torchButtonActive: {
+    backgroundColor: '#0891B2',
+    borderColor: '#0891B2',
+  },
+  middleRow: {
+    flexDirection: 'row',
+    height: 280,
+    width: '100%',
+  },
+  sideOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(9, 26, 46, 0.75)',
+  },
+  scannerTarget: {
+    width: 280,
+    height: 280,
+    position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  corner: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: '#0891B2',
+    borderWidth: 4,
+  },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 8,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderTopRightRadius: 8,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 8,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderBottomRightRadius: 8,
+  },
+  scanLine: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    height: 3,
+    backgroundColor: '#00F0FF',
+    shadowColor: '#00F0FF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  bottomBar: {
+    backgroundColor: 'rgba(9, 26, 46, 0.75)',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+    alignItems: 'center',
+    width: '100%',
+  },
+  scanInstructions: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
   },
   aiButton: {
     backgroundColor: '#0891B2',
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: 28,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    justifyContent: 'center',
+    shadowColor: '#0891B2',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowRadius: 12,
     elevation: 8,
+    width: '100%',
+    maxWidth: 300,
+  },
+  aiButtonDisabled: {
+    backgroundColor: '#475569',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   aiButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 10,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(9, 26, 46, 0.6)',
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
     minHeight: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 24,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -375,127 +558,156 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '900',
     color: '#0A2342',
+    letterSpacing: 0.3,
   },
   barcodeText: {
     fontSize: 14,
-    color: '#64748b',
-    marginBottom: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 16,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   loader: {
-    marginVertical: 20,
+    marginVertical: 24,
   },
   medicationBox: {
-    backgroundColor: '#f8fafc',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: 'rgba(8, 145, 178, 0.04)',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(8, 145, 178, 0.15)',
   },
   medName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   medInfo: {
     fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
+    color: '#475569',
+    marginTop: 6,
+    fontWeight: '500',
   },
   notFound: {
-    color: '#ef4444',
-    marginBottom: 16,
-    fontStyle: 'italic',
+    color: '#EF4444',
+    fontWeight: '600',
+    marginBottom: 12,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#334155',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   typeSelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: 10,
+    gap: 10,
   },
   typeBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
   },
   typeBtnActive: {
     backgroundColor: '#0891B2',
     borderColor: '#0891B2',
   },
   typeBtnText: {
-    color: '#475569',
-    fontWeight: '500',
+    color: '#64748B',
+    fontWeight: '700',
+    fontSize: 14,
   },
   typeBtnTextActive: {
     color: '#fff',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 14,
     fontSize: 18,
+    fontWeight: '600',
     marginBottom: 24,
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFC',
+    color: '#0F172A',
   },
   newMedBox: {
-    backgroundColor: '#fff1f2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.04)',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#fecdd3',
+    borderColor: 'rgba(239, 68, 68, 0.15)',
   },
   inputSmall: {
-    borderWidth: 1,
-    borderColor: '#fecdd3',
-    borderRadius: 8,
-    padding: 8,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    padding: 12,
     fontSize: 16,
     backgroundColor: '#fff',
+    color: '#0F172A',
+    marginTop: 8,
   },
   submitBtn: {
     backgroundColor: '#0A2342',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0A2342',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitBtnDisabled: {
-    backgroundColor: '#94a3b8',
+    backgroundColor: '#cbd5e1',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitBtnText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
   permissionText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#64748B',
+    fontSize: 15,
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 24,
+    marginBottom: 24,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   permissionBtn: {
     backgroundColor: '#0891B2',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#0891B2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   permissionBtnText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });

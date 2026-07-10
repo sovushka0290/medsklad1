@@ -10,7 +10,8 @@ import {
   Modal, 
   TextInput,
   Platform,
-  StatusBar
+  StatusBar,
+  RefreshControl
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 export default function ProceduresScreen() {
   const [procedures, setProcedures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedProc, setSelectedProc] = useState<any>(null);
   const [quantity, setQuantity] = useState('1');
@@ -44,6 +46,12 @@ export default function ProceduresScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
   };
 
   const openModal = (proc: any) => {
@@ -98,6 +106,21 @@ export default function ProceduresScreen() {
         data={procedures}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#0891B2']}
+            tintColor="#0891B2"
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="medical-outline" size={64} color="#CBD5E1" style={{ marginBottom: 16 }} />
+            <Text style={styles.emptyText}>Список процедур пуст</Text>
+            <Text style={styles.emptySubtext}>Потяните экран вниз для обновления данных</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <TouchableOpacity 
             style={styles.card} 
@@ -316,5 +339,24 @@ const styles = StyleSheet.create({
     color: '#fff', 
     fontSize: 16, 
     fontWeight: '700',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

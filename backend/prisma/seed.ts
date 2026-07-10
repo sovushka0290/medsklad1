@@ -195,7 +195,53 @@ async function main() {
     ],
   });
 
-  console.log('Сидинг успешно завершен! Сгенерированы локации, номенклатура и остатки.');
+  console.log('Создание процедур и нормативов по ТЗ...');
+  await prisma.procedure.create({
+    data: {
+      name: 'Лечение кариеса (пломбирование)',
+      description: 'Стандартная процедура пломбирования композитным материалом светового отверждения с анестезией.',
+      norms: {
+        create: [
+          { medicationId: ultra.id, expectedQuantity: 1.0, tolerancePercent: 20 },
+          { medicationId: filtek.id, expectedQuantity: 1.0, tolerancePercent: 30 },
+          { medicationId: glovesM.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+          { medicationId: cotton.id, expectedQuantity: 4.0, tolerancePercent: 50 },
+          { medicationId: masks.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+        ],
+      },
+    },
+  });
+
+  await prisma.procedure.create({
+    data: {
+      name: 'Удаление зуба (простое)',
+      description: 'Хирургическое удаление однокорневого или многокорневого зуба под местной анестезией.',
+      norms: {
+        create: [
+          { medicationId: ultra.id, expectedQuantity: 1.0, tolerancePercent: 20 },
+          { medicationId: glovesM.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+          { medicationId: cotton.id, expectedQuantity: 6.0, tolerancePercent: 50 },
+          { medicationId: masks.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+        ],
+      },
+    },
+  });
+
+  await prisma.procedure.create({
+    data: {
+      name: 'Профессиональная гигиена полости рта',
+      description: 'Ультразвуковая чистка зубов, AirFlow полировка и фторирование.',
+      norms: {
+        create: [
+          { medicationId: glovesM.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+          { medicationId: cotton.id, expectedQuantity: 10.0, tolerancePercent: 20 },
+          { medicationId: masks.id, expectedQuantity: 2.0, tolerancePercent: 0 },
+        ],
+      },
+    },
+  });
+
+  console.log('Сидинг успешно завершен! Сгенерированы локации, номенклатура, остатки и процедуры.');
 }
 
 main()
