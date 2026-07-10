@@ -2,8 +2,8 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 
-// Use EXPO_PUBLIC_API_URL or fallback to render
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://medsklad1.onrender.com/api';
+// Use EXPO_PUBLIC_API_URL or fallback to vercel
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://backend-steel-sigma.vercel.app/api';
 
 export const api = axios.create({
   baseURL: API_URL,

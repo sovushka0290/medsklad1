@@ -40,7 +40,7 @@ export default function LoginScreen({ navigation }: any) {
     setLoadingMessage('Подключение к серверу...');
 
     const messageTimer = setTimeout(() => {
-      setLoadingMessage('Сервер просыпается...\nХолодный старт Render может занимать до 45 секунд. Пожалуйста, не закрывайте приложение.');
+      setLoadingMessage('Сервер просыпается...\nПервый запуск Vercel/Neon может занимать до 15 секунд. Пожалуйста, подождите.');
     }, 5000);
 
     try {
