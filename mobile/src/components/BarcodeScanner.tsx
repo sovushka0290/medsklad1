@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, Alert, Modal, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
-import { Camera, CameraView } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 type TransactionType = 'INCOME' | 'OUTFLOW' | 'RETURN' | 'WRITE_OFF';
 
 export default function BarcodeScanner() {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [barcode, setBarcode] = useState<string>('');
@@ -23,9 +23,6 @@ export default function BarcodeScanner() {
 
   useEffect(() => {
     const init = async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-      
       try {
         const userRole = await SecureStore.getItemAsync('userRole');
         if (userRole) setRole(userRole);
@@ -130,11 +127,27 @@ export default function BarcodeScanner() {
     setTimeout(() => setScanned(false), 500); 
   };
 
-  if (hasPermission === null) {
-    return <Text>Запрос разрешения на использование камеры...</Text>;
+  if (!permission) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#0891B2" />
+        <Text style={styles.permissionText}>Загрузка разрешений камеры...</Text>
+      </View>
+    );
   }
-  if (hasPermission === false) {
-    return <Text>Нет доступа к камере</Text>;
+  
+  if (!permission.granted) {
+    return (
+      <View style={[styles.container, { padding: 20, alignItems: 'center', justifyContent: 'center' }]}>
+        <Ionicons name="camera-outline" size={64} color="#64748b" style={{ marginBottom: 16 }} />
+        <Text style={styles.permissionText}>
+          Для сканирования штрих-кодов и распознавания препаратов требуется доступ к камере.
+        </Text>
+        <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
+          <Text style={styles.permissionBtnText}>Предоставить доступ</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   const allowIncome = ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(role);
@@ -183,6 +196,9 @@ export default function BarcodeScanner() {
     <View style={styles.container}>
       <CameraView
         ref={cameraRef}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
+        }}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         style={StyleSheet.absoluteFill}
       >
@@ -463,5 +479,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  permissionText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  permissionBtn: {
+    backgroundColor: '#0891B2',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  permissionBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
