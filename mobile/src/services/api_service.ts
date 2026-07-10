@@ -7,7 +7,7 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api';
 
 export const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000, // 10-second timeout to prevent indefinite hangs
+  timeout: 35000, // 35-second timeout to allow Render container to wake up (cold start)
 });
 
 api.interceptors.request.use(async (config) => {
@@ -23,19 +23,22 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use((response) => {
   return response;
 }, async (error) => {
-  const originalRequest = error.config;
+  const originalRequest = error?.config;
+  const skipAlerts = originalRequest?.skipErrorAlerts;
   
   // Handle request timeouts and connection drops
-  if (error.code === 'ECONNABORTED') {
-    Alert.alert(
-      'Превышено время ожидания',
-      'Сервер не ответил вовремя. Проверьте интернет-соединение.'
-    );
-  } else if (!error.response) {
-    Alert.alert(
-      'Ошибка сети',
-      'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
-    );
+  if (!skipAlerts) {
+    if (error.code === 'ECONNABORTED') {
+      Alert.alert(
+        'Превышено время ожидания',
+        'Сервер не ответил вовремя. Проверьте интернет-соединение.'
+      );
+    } else if (!error.response) {
+      Alert.alert(
+        'Ошибка сети',
+        'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
+      );
+    }
   }
   
   if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/login' && originalRequest.url !== '/auth/refresh') {

@@ -13,6 +13,7 @@ import {
   StatusBar
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import NetInfo from '@react-native-community/netinfo';
 import { api } from '../services/api_service';
 import { registerForPushNotificationsAsync } from '../services/push_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,16 +24,37 @@ export default function LoginScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('');
 
   const handleLogin = async () => {
+    setErrorMessage('');
+    setLoadingMessage('');
+
     if (!email || !password) {
-      Alert.alert('Ошибка', 'Введите email и пароль');
+      setErrorMessage('Введите email и пароль');
       return;
     }
 
     setLoading(true);
+    setLoadingMessage('Подключение к серверу...');
+
+    const messageTimer = setTimeout(() => {
+      setLoadingMessage('Сервер просыпается...\nХолодный старт Render может занимать до 45 секунд. Пожалуйста, не закрывайте приложение.');
+    }, 5000);
+
     try {
-      const response = await api.post('/auth/login', { email, password });
+      // Проверка интернет-соединения
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        throw new Error('NO_INTERNET');
+      }
+
+      const response = await api.post(
+        '/auth/login', 
+        { email, password },
+        { skipErrorAlerts: true } as any
+      );
       
       if (response.data.data?.token) {
         await SecureStore.setItemAsync('accessToken', response.data.data.token);
@@ -46,13 +68,24 @@ export default function LoginScreen({ navigation }: any) {
         await registerForPushNotificationsAsync();
         navigation.replace('Main');
       } else {
-        Alert.alert('Ошибка', 'Неверные данные для входа');
+        setErrorMessage('Неверные данные для входа');
       }
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Ошибка подключения к серверу';
-      Alert.alert('Ошибка авторизации', msg);
+      clearTimeout(messageTimer);
+      if (error.message === 'NO_INTERNET') {
+        setErrorMessage('Отсутствует интернет-соединение. Проверьте настройки сети.');
+      } else if (error.code === 'ECONNABORTED') {
+        setErrorMessage('Превышено время ожидания сервера. Проверьте интернет или попробуйте позже.');
+      } else if (!error.response) {
+        setErrorMessage('Не удалось связаться с сервером. Возможно, он сейчас перезапускается или спит.');
+      } else {
+        const msg = error.response?.data?.message || 'Ошибка подключения к серверу';
+        setErrorMessage(msg);
+      }
     } finally {
+      clearTimeout(messageTimer);
       setLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -114,6 +147,20 @@ export default function LoginScreen({ navigation }: any) {
               />
             </View>
           </View>
+
+          {errorMessage ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
+          {loadingMessage && loading ? (
+            <View style={styles.loadingMessageContainer}>
+              <ActivityIndicator size="small" color="#0891B2" style={{ marginRight: 8 }} />
+              <Text style={styles.loadingMessageText}>{loadingMessage}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity 
             style={[styles.button, loading && styles.buttonDisabled]} 
@@ -247,5 +294,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  loadingMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 15,
+  },
+  loadingMessageText: {
+    color: '#047857',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
   },
 });
