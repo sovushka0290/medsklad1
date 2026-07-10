@@ -11,7 +11,8 @@ import {
   TextInput,
   Platform,
   StatusBar,
-  RefreshControl
+  RefreshControl,
+  ScrollView
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,8 @@ export default function ProceduresScreen() {
   const [selectedProc, setSelectedProc] = useState<any>(null);
   const [quantity, setQuantity] = useState('1');
   const [submitting, setSubmitting] = useState(false);
-  const [defaultLocId, setDefaultLocId] = useState<number>(1);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [selectedLocId, setSelectedLocId] = useState<number>(1);
 
   useEffect(() => {
     fetchData();
@@ -37,8 +39,10 @@ export default function ProceduresScreen() {
         api.get('/locations')
       ]);
       setProcedures(procRes.data?.data || []);
-      if (locRes.data && locRes.data.length > 0) {
-        setDefaultLocId(locRes.data[0].id);
+      const locList = locRes.data || [];
+      setLocations(locList);
+      if (locList.length > 0) {
+        setSelectedLocId(locList[0].id);
       }
     } catch (e) {
       console.error(e);
@@ -72,14 +76,15 @@ export default function ProceduresScreen() {
       for (let i = 0; i < qty; i++) {
         await api.post('/procedures/log', {
           procedureId: selectedProc.id,
-          locationId: defaultLocId
+          locationId: selectedLocId
         });
       }
       
       Alert.alert('Успех', 'Расход медикаментов по процедуре зафиксирован!');
       setModalVisible(false);
     } catch (e: any) {
-      Alert.alert('Ошибка', 'Не удалось записать процедуру');
+      const errMsg = e.response?.data?.error || 'Не удалось записать процедуру';
+      Alert.alert('Ошибка', errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -160,8 +165,38 @@ export default function ProceduresScreen() {
                 value={quantity}
                 onChangeText={setQuantity}
                 keyboardType="number-pad"
-                autoFocus
               />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <Text style={styles.label}>Кабинет / Склад списания:</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.locationChips}
+                style={{ maxHeight: 50 }}
+              >
+                {locations.map((loc) => {
+                  const isSelected = selectedLocId === loc.id;
+                  return (
+                    <TouchableOpacity
+                      key={loc.id}
+                      style={[
+                        styles.chip,
+                        isSelected && styles.chipSelected
+                      ]}
+                      onPress={() => setSelectedLocId(loc.id)}
+                    >
+                      <Text style={[
+                        styles.chipText,
+                        isSelected && styles.chipTextSelected
+                      ]}>
+                        {loc.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
 
             <TouchableOpacity 
@@ -358,5 +393,30 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  locationChips: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  chipSelected: {
+    backgroundColor: '#0891B2',
+    borderColor: '#0891B2',
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  chipTextSelected: {
+    color: '#FFFFFF',
   },
 });
