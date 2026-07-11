@@ -114,34 +114,88 @@ export default function InventoryScreen({ navigation }: any) {
     (item.location.name && item.location.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const getExpirationStatus = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const today = new Date();
+    const expDate = new Date(dateStr);
+    const diffTime = expDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return { label: 'Срок истёк', color: '#ef4444', bg: '#fee2e2' };
+    } else if (diffDays <= 30) {
+      return { label: `Истекает через ${diffDays} дн.`, color: '#f59e0b', bg: '#fef3c7' };
+    }
+    return null;
+  };
+
   const renderItem = ({ item, index }: { item: InventoryItem; index: number }) => {
     const isLowStock = item.quantity <= item.medication.minQuantity;
+    const expStatus = getExpirationStatus(item.expirationDate);
+    const stockRatio = item.medication.minQuantity > 0 
+      ? Math.min(item.quantity / (item.medication.minQuantity * 2), 1) 
+      : 1;
 
     return (
       <FadeInItem index={index}>
         <View style={[styles.card, isLowStock ? styles.cardLowStock : styles.cardNormalStock]}>
+          
           <View style={styles.cardHeader}>
-            <Text style={styles.medName}>{item.medication.name}</Text>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.medName} numberOfLines={2}>{item.medication.name}</Text>
+              <View style={styles.infoRow}>
+                <Ionicons name="location-outline" size={13} color="#64748B" />
+                <Text style={styles.locationText}>{item.location.name}</Text>
+              </View>
+            </View>
+            
             <View style={[styles.badge, isLowStock ? styles.badgeDanger : styles.badgeSuccess]}>
               <Text style={[styles.badgeText, isLowStock ? styles.badgeTextDanger : styles.badgeTextSuccess]}>
                 {item.quantity} шт
               </Text>
             </View>
           </View>
-          <View style={styles.cardBody}>
-            <View style={styles.infoRow}>
-              <Ionicons name="location-outline" size={14} color="#64748B" />
-              <Text style={styles.infoText}>{item.location.name}</Text>
+
+          {/* Stock level visualization bar */}
+          <View style={styles.stockLevelContainer}>
+            <View style={styles.stockLevelHeader}>
+              <Text style={styles.stockLevelLabel}>Уровень запаса</Text>
+              <Text style={styles.stockLevelValues}>
+                Мин. норма: {item.medication.minQuantity} шт
+              </Text>
             </View>
-            {item.expirationDate && (
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={14} color="#64748B" />
-                <Text style={styles.infoText}>
-                  Годен до: {new Date(item.expirationDate).toLocaleDateString()}
-                </Text>
-              </View>
-            )}
+            <View style={styles.stockBarBg}>
+              <View style={[
+                styles.stockBarFill, 
+                { 
+                  width: `${stockRatio * 100}%`,
+                  backgroundColor: isLowStock ? '#ef4444' : '#10b981'
+                }
+              ]} />
+            </View>
           </View>
+
+          {/* Expiration date or warnings */}
+          {item.expirationDate && (
+            <View style={styles.expirationRow}>
+              {expStatus ? (
+                <View style={[styles.expWarningBadge, { backgroundColor: expStatus.bg }]}>
+                  <Ionicons name="alert-circle-outline" size={12} color={expStatus.color} />
+                  <Text style={[styles.expWarningText, { color: expStatus.color }]}>
+                    {expStatus.label}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.expNormalRow}>
+                  <Ionicons name="calendar-outline" size={13} color="#64748B" />
+                  <Text style={styles.expNormalText}>
+                    Годен до: {new Date(item.expirationDate).toLocaleDateString('ru-RU')}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
         </View>
       </FadeInItem>
     );
@@ -292,18 +346,19 @@ const styles = StyleSheet.create({
   list: {
     padding: 20,
     paddingTop: 24,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
+    marginBottom: 14,
+    borderLeftWidth: 5,
     shadowColor: '#0A2342',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardLowStock: {
     borderLeftColor: '#EF4444',
@@ -318,16 +373,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   medName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: '#0F172A',
-    flex: 1,
-    marginRight: 8,
+    lineHeight: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
   },
   badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   badgeSuccess: {
     backgroundColor: '#DCFCE7',
@@ -336,8 +401,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '900',
   },
   badgeTextSuccess: {
     color: '#15803D',
@@ -345,17 +410,61 @@ const styles = StyleSheet.create({
   badgeTextDanger: {
     color: '#B91C1C',
   },
-  cardBody: {
-    flexDirection: 'column',
-    gap: 8,
+  stockLevelContainer: {
+    marginVertical: 10,
   },
-  infoRow: {
+  stockLevelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  stockLevelLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  stockLevelValues: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  stockBarBg: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  stockBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  expirationRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 10,
+    marginTop: 6,
+  },
+  expWarningBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
   },
-  infoText: {
-    fontSize: 13,
+  expWarningText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  expNormalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expNormalText: {
+    fontSize: 12,
     color: '#64748B',
     fontWeight: '500',
   },

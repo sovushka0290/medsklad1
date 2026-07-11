@@ -60,6 +60,7 @@ export default function ProceduresScreen() {
   const [locations, setLocations] = useState<any[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<number>(1);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation<any>();
 
   const sheetAnim = useRef(new Animated.Value(400)).current;
@@ -96,7 +97,7 @@ export default function ProceduresScreen() {
         api.get('/procedures'),
         api.get('/locations')
       ]);
-      setProcedures(procRes.data?.data || []);
+      setProcedures(procRes.data?.data || procRes.data || []);
       const locList = locRes.data || [];
       setLocations(locList);
       if (locList.length > 0) {
@@ -154,6 +155,22 @@ export default function ProceduresScreen() {
     });
   };
 
+  const decreaseQty = () => {
+    const val = parseInt(quantity, 10);
+    if (!isNaN(val) && val > 1) {
+      setQuantity(String(val - 1));
+    }
+  };
+
+  const increaseQty = () => {
+    const val = parseInt(quantity, 10);
+    if (!isNaN(val)) {
+      setQuantity(String(val + 1));
+    } else {
+      setQuantity('1');
+    }
+  };
+
   const submitLog = async () => {
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) {
@@ -180,6 +197,11 @@ export default function ProceduresScreen() {
     }
   };
 
+  const filteredProcedures = procedures.filter(proc =>
+    proc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (proc.description && proc.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -202,10 +224,27 @@ export default function ProceduresScreen() {
             <Ionicons name="log-out-outline" size={22} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        {/* Search Input in header */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Поиск по названию процедуры..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <FlatList
-        data={procedures}
+        data={filteredProcedures}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -218,9 +257,8 @@ export default function ProceduresScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="medical-outline" size={64} color="#CBD5E1" style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyText}>Список процедур пуст</Text>
-            <Text style={styles.emptySubtext}>Потяните экран вниз для обновления данных</Text>
+            <Ionicons name="search-outline" size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+            <Text style={styles.emptyText}>Процедуры не найдены</Text>
           </View>
         }
         renderItem={({ item, index }) => (
@@ -254,7 +292,7 @@ export default function ProceduresScreen() {
                 { transform: [{ translateY: sheetAnim }] }
               ]}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Фиксация процедуры</Text>
+                  <Text style={styles.modalTitle}>Фиксация расхода</Text>
                   <TouchableOpacity onPress={closeModal} style={styles.closeBtn}>
                     <Ionicons name="close" size={22} color="#64748b" />
                   </TouchableOpacity>
@@ -262,14 +300,52 @@ export default function ProceduresScreen() {
 
                 <Text style={styles.procName}>{selectedProc?.name}</Text>
 
+                {/* Norms list inside sheet */}
+                {selectedProc?.norms && selectedProc.norms.length > 0 && (
+                  <View style={styles.normsContainer}>
+                    <Text style={styles.normsTitle}>Требуемые медикаменты:</Text>
+                    {selectedProc.norms.map((norm: any, idx: number) => (
+                      <View key={norm.id || idx} style={styles.normRow}>
+                        <Ionicons name="cube-outline" size={13} color="#94A3B8" />
+                        <Text style={styles.normMedName} numberOfLines={1}>
+                          {norm.medication?.name || `ID ${norm.medicationId}`}
+                        </Text>
+                        <Text style={styles.normQty}>
+                          {(norm.expectedQuantity * (parseInt(quantity, 10) || 1)).toFixed(1)} шт
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Plus / Minus Counter for Quantity */}
                 <View style={styles.inputWrapper}>
                   <Text style={styles.label}>Количество выполнений:</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={quantity}
-                    onChangeText={setQuantity}
-                    keyboardType="number-pad"
-                  />
+                  <View style={styles.counterContainer}>
+                    <TouchableOpacity 
+                      style={styles.counterBtn} 
+                      onPress={decreaseQty}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="remove" size={22} color="#0891B2" />
+                    </TouchableOpacity>
+                    
+                    <TextInput
+                      style={styles.counterInput}
+                      value={quantity}
+                      onChangeText={setQuantity}
+                      keyboardType="number-pad"
+                      textAlign="center"
+                    />
+
+                    <TouchableOpacity 
+                      style={styles.counterBtn} 
+                      onPress={increaseQty}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="add" size={22} color="#0891B2" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.inputWrapper}>
@@ -290,6 +366,7 @@ export default function ProceduresScreen() {
                             isSelected && styles.chipSelected
                           ]}
                           onPress={() => setSelectedLocId(loc.id)}
+                          activeOpacity={0.8}
                         >
                           <Text style={[
                             styles.chipText,
@@ -353,12 +430,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 8,
-    marginBottom: 16,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
   },
   logoutButton: {
     padding: 8,
@@ -377,13 +454,33 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '500',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 14,
+    height: '100%',
+  },
   list: {
     padding: 20,
-    paddingTop: 8,
+    paddingTop: 24,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
@@ -391,7 +488,7 @@ const styles = StyleSheet.create({
     shadowColor: '#0A2342',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 2,
   },
   cardIcon: {
@@ -409,7 +506,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { 
     fontSize: 16, 
-    fontWeight: '700', 
+    fontWeight: '800', 
     color: '#0F172A',
   },
   cardDesc: { 
@@ -417,6 +514,7 @@ const styles = StyleSheet.create({
     color: '#64748B', 
     marginTop: 4,
     lineHeight: 18,
+    fontWeight: '500',
   },
   modalOverlay: { 
     flex: 1, 
@@ -439,56 +537,112 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    marginBottom: 20,
+    marginBottom: 14,
   },
   modalTitle: { 
     fontSize: 20, 
-    fontWeight: '800', 
+    fontWeight: '900', 
     color: '#0F172A',
   },
   closeBtn: {
-    padding: 4,
-    borderRadius: 8,
+    padding: 6,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
   },
   procName: { 
     fontSize: 16, 
     color: '#0891B2', 
-    marginBottom: 24, 
-    fontWeight: '700', 
+    marginBottom: 18, 
+    fontWeight: '800', 
+  },
+  normsContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  normsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  normRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 6,
+  },
+  normMedName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+    flex: 1,
+  },
+  normQty: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#64748B',
   },
   inputWrapper: {
-    marginBottom: 28,
+    marginBottom: 20,
   },
   label: { 
-    fontSize: 14, 
-    fontWeight: '700', 
+    fontSize: 12, 
+    fontWeight: '800', 
     color: '#475569', 
     marginBottom: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  input: { 
-    borderWidth: 1, 
-    borderColor: '#E2E8F0', 
-    borderRadius: 14, 
-    padding: 14, 
-    fontSize: 20, 
-    fontWeight: '700',
-    textAlign: 'center',
-    color: '#0F172A',
+  counterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 8,
+  },
+  counterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    marginHorizontal: 16,
+  },
+  counterInput: { 
+    flex: 1,
+    fontSize: 22, 
+    fontWeight: '900',
+    color: '#0F172A',
+    paddingHorizontal: 10,
   },
   submitBtn: { 
     backgroundColor: '#0891B2', 
     padding: 16, 
-    borderRadius: 14, 
+    borderRadius: 16, 
     alignItems: 'center',
     shadowColor: '#0891B2',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
+    marginTop: 8,
   },
   submitBtnDisabled: { 
     opacity: 0.7, 
@@ -496,26 +650,17 @@ const styles = StyleSheet.create({
   submitBtnText: { 
     color: '#fff', 
     fontSize: 16, 
-    fontWeight: '700',
+    fontWeight: '800',
   },
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 24,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#334155',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
     color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   locationChips: {
     paddingVertical: 4,
@@ -525,7 +670,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
+    borderRadius: 14,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -535,8 +680,8 @@ const styles = StyleSheet.create({
     borderColor: '#0891B2',
   },
   chipText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#475569',
   },
   chipTextSelected: {
