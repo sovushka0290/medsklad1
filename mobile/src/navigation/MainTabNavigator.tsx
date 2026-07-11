@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 import HomeScreen from '../screens/HomeScreen';
 import InventoryScreen from '../screens/InventoryScreen';
@@ -15,6 +16,7 @@ const Tab = createBottomTabNavigator();
 export default function MainTabNavigator() {
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -29,6 +31,26 @@ export default function MainTabNavigator() {
     };
     fetchRole();
   }, []);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Выход из аккаунта',
+      'Вы уверены, что хотите выйти из учетной записи?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Выйти', 
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync('accessToken');
+            await SecureStore.deleteItemAsync('refreshToken');
+            await SecureStore.deleteItemAsync('userRole');
+            navigation.replace('Login');
+          }
+        }
+      ]
+    );
+  };
 
   if (loading) {
     return (
@@ -60,8 +82,7 @@ export default function MainTabNavigator() {
         },
         tabBarActiveTintColor: '#0891B2',
         tabBarInactiveTintColor: '#64748b',
-        headerStyle: { backgroundColor: '#0A2342' },
-        headerTintColor: '#fff',
+        headerShown: false,
         tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#e2e8f0' },
       })}
     >

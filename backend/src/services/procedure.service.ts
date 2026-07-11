@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { BadRequestError } from '../lib/errors';
 
 export const createProcedure = async (data: {
   name: string;
@@ -6,22 +7,22 @@ export const createProcedure = async (data: {
   norms: { medicationId: number; expectedQuantity: number; tolerancePercent: number }[];
 }) => {
   if (!data.name || data.name.trim().length === 0) {
-    throw new Error('Название процедуры обязательно');
+    throw new BadRequestError('Название процедуры обязательно');
   }
   if (!data.norms || data.norms.length === 0) {
-    throw new Error('Необходимо указать хотя бы один норматив');
+    throw new BadRequestError('Необходимо указать хотя бы один норматив');
   }
 
   // Валидация нормативов
   for (const norm of data.norms) {
     if (!norm.medicationId || norm.medicationId <= 0) {
-      throw new Error('Некорректный ID медикамента в нормативе');
+      throw new BadRequestError('Некорректный ID медикамента в нормативе');
     }
     if (!norm.expectedQuantity || norm.expectedQuantity <= 0) {
-      throw new Error('Ожидаемое количество должно быть положительным');
+      throw new BadRequestError('Ожидаемое количество должно быть положительным');
     }
     if (norm.tolerancePercent < 0 || norm.tolerancePercent > 100) {
-      throw new Error('Допустимое отклонение должно быть от 0 до 100%');
+      throw new BadRequestError('Допустимое отклонение должно быть от 0 до 100%');
     }
   }
 
@@ -56,23 +57,26 @@ export const logProcedure = async (data: {
   procedureId: number;
   locationId: number;
   userId: number;
+  quantity?: number;
 }) => {
   if (!data.procedureId || data.procedureId <= 0) {
-    throw new Error('Некорректный ID процедуры');
+    throw new BadRequestError('Некорректный ID процедуры');
   }
   if (!data.locationId || data.locationId <= 0) {
-    throw new Error('Некорректный ID локации');
+    throw new BadRequestError('Некорректный ID локации');
   }
+  const parsedQty = data.quantity ? parseInt(String(data.quantity), 10) : 1;
+  const quantity = isNaN(parsedQty) || parsedQty <= 0 ? 1 : parsedQty;
 
   return prisma.$transaction(async (tx) => {
     // Проверяем что процедура существует
     const procedure = await tx.procedure.findUnique({ 
       where: { id: data.procedureId },
-      include: { norms: true }
+      include: { norms: { include: { medication: { select: { name: true } } } } }
     });
     
     if (!procedure) {
-      throw new Error('Процедура не найдена');
+      throw new BadRequestError('Процедура не найдена');
     }
 
     // Извлекаем все партии для всех требуемых медикаментов в одном запросе
@@ -91,7 +95,7 @@ export const logProcedure = async (data: {
       // Ищем партии списанием по FEFO из предзагруженного списка
       const batches = allBatches.filter((b) => b.medicationId === norm.medicationId);
 
-      let remainingToDeduct = norm.expectedQuantity;
+      let remainingToDeduct = norm.expectedQuantity * quantity;
       let currentTotalStock = batches.reduce((sum, b) => sum + b.quantity, 0);
       
       for (const batch of batches) {
@@ -130,23 +134,31 @@ export const logProcedure = async (data: {
       }
 
       if (remainingToDeduct > 0) {
-        throw new Error(`Недостаточно медикамента (ID: ${norm.medicationId}) для проведения процедуры`);
+        const medName = norm.medication?.name || `ID ${norm.medicationId}`;
+        throw new BadRequestError(`Недостаточно медикамента "${medName}" для проведения процедуры`);
       }
     }
 
     // Логируем саму процедуру
-    return tx.procedureLog.create({
-      data: {
-        procedureId: data.procedureId,
-        locationId: data.locationId,
-        userId: data.userId,
-      },
-      include: {
-        procedure: { select: { id: true, name: true } },
-        location: { select: { id: true, name: true } },
-        user: { select: { id: true, name: true, role: true } },
-      },
-    });
+    let lastLog;
+    for (let i = 0; i < quantity; i++) {
+      lastLog = await tx.procedureLog.create({
+        data: {
+          procedureId: data.procedureId,
+          locationId: data.locationId,
+          userId: data.userId,
+        },
+        include: {
+          procedure: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, role: true } },
+        },
+      });
+    }
+    return lastLog;
+  }, {
+    maxWait: 8000,
+    timeout: 20000
   });
 };
 

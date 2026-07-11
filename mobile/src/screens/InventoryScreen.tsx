@@ -10,10 +10,12 @@ import {
   TouchableOpacity, 
   TextInput, 
   Platform,
-  StatusBar
+  StatusBar,
+  Animated
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 
 interface InventoryItem {
   id: number;
@@ -29,11 +31,61 @@ interface InventoryItem {
   };
 }
 
+const FadeInItem = ({ children, index }: { children: React.ReactNode, index: number }) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(15)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+};
+
 export default function InventoryScreen({ navigation }: any) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Выход из аккаунта',
+      'Вы уверены, что хотите выйти из учетной записи?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Выйти', 
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync('accessToken');
+            await SecureStore.deleteItemAsync('refreshToken');
+            await SecureStore.deleteItemAsync('userRole');
+            await SecureStore.deleteItemAsync('userName');
+            navigation.replace('Login');
+          }
+        }
+      ]
+    );
+  };
+
   const fetchInventory = async () => {
     try {
       const response = await api.get('/inventory');
@@ -62,34 +114,36 @@ export default function InventoryScreen({ navigation }: any) {
     (item.location.name && item.location.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const renderItem = ({ item }: { item: InventoryItem }) => {
+  const renderItem = ({ item, index }: { item: InventoryItem; index: number }) => {
     const isLowStock = item.quantity <= item.medication.minQuantity;
 
     return (
-      <View style={[styles.card, isLowStock ? styles.cardLowStock : styles.cardNormalStock]}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.medName}>{item.medication.name}</Text>
-          <View style={[styles.badge, isLowStock ? styles.badgeDanger : styles.badgeSuccess]}>
-            <Text style={[styles.badgeText, isLowStock ? styles.badgeTextDanger : styles.badgeTextSuccess]}>
-              {item.quantity} шт
-            </Text>
-          </View>
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={14} color="#64748B" />
-            <Text style={styles.infoText}>{item.location.name}</Text>
-          </View>
-          {item.expirationDate && (
-            <View style={styles.infoRow}>
-              <Ionicons name="calendar-outline" size={14} color="#64748B" />
-              <Text style={styles.infoText}>
-                Годен до: {new Date(item.expirationDate).toLocaleDateString()}
+      <FadeInItem index={index}>
+        <View style={[styles.card, isLowStock ? styles.cardLowStock : styles.cardNormalStock]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.medName}>{item.medication.name}</Text>
+            <View style={[styles.badge, isLowStock ? styles.badgeDanger : styles.badgeSuccess]}>
+              <Text style={[styles.badgeText, isLowStock ? styles.badgeTextDanger : styles.badgeTextSuccess]}>
+                {item.quantity} шт
               </Text>
             </View>
-          )}
+          </View>
+          <View style={styles.cardBody}>
+            <View style={styles.infoRow}>
+              <Ionicons name="location-outline" size={14} color="#64748B" />
+              <Text style={styles.infoText}>{item.location.name}</Text>
+            </View>
+            {item.expirationDate && (
+              <View style={styles.infoRow}>
+                <Ionicons name="calendar-outline" size={14} color="#64748B" />
+                <Text style={styles.infoText}>
+                  Годен до: {new Date(item.expirationDate).toLocaleDateString()}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
+      </FadeInItem>
     );
   };
 
@@ -99,7 +153,12 @@ export default function InventoryScreen({ navigation }: any) {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.title}>Склад</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={styles.title}>Склад</Text>
+              <TouchableOpacity onPress={handleLogout} style={{ padding: 4 }} activeOpacity={0.7}>
+                <Ionicons name="log-out-outline" size={20} color="#fff" style={{ opacity: 0.8 }} />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.subtitle}>Остатки медикаментов</Text>
           </View>
           <TouchableOpacity 

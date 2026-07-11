@@ -8,10 +8,42 @@ import {
   Alert, 
   RefreshControl,
   Platform,
-  StatusBar
+  StatusBar,
+  TouchableOpacity,
+  Animated
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import { useNavigation } from '@react-navigation/native';
+
+const FadeInItem = ({ children, index }: { children: React.ReactNode, index: number }) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(15)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 interface Transaction {
   id: number;
@@ -30,6 +62,28 @@ export default function HistoryScreen() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const navigation = useNavigation<any>();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Выход из аккаунта',
+      'Вы уверены, что хотите выйти из учетной записи?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Выйти', 
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync('accessToken');
+            await SecureStore.deleteItemAsync('refreshToken');
+            await SecureStore.deleteItemAsync('userRole');
+            await SecureStore.deleteItemAsync('userName');
+            navigation.replace('Login');
+          }
+        }
+      ]
+    );
+  };
 
   const fetchHistory = async () => {
     try {
@@ -99,42 +153,44 @@ export default function HistoryScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Transaction }) => {
+  const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
     const styleInfo = getTypeStyle(item.type);
 
     return (
-      <View style={[styles.card, { borderLeftColor: styleInfo.borderColor }]}>
-        <View style={[styles.iconContainer, { backgroundColor: styleInfo.bg }]}>
-          <Ionicons name={styleInfo.icon as any} size={22} color={styleInfo.color} />
-        </View>
-        <View style={styles.contentContainer}>
-          <Text style={styles.medName}>{item.medication.name}</Text>
-          <View style={styles.detailsRow}>
-            <Text style={[styles.typeLabel, { color: styleInfo.color }]}>{styleInfo.label}</Text>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.qtyText}>{item.quantity} шт.</Text>
+      <FadeInItem index={index}>
+        <View style={[styles.card, { borderLeftColor: styleInfo.borderColor }]}>
+          <View style={[styles.iconContainer, { backgroundColor: styleInfo.bg }]}>
+            <Ionicons name={styleInfo.icon as any} size={22} color={styleInfo.color} />
           </View>
-          <View style={styles.footerRow}>
-            <Ionicons name="time-outline" size={12} color="#94A3B8" />
-            <Text style={styles.timeText}>
-              {new Date(item.createdAt).toLocaleString('ru-RU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </Text>
-            {item.user && (
-              <>
-                <Text style={styles.bullet}>•</Text>
-                <Ionicons name="person-outline" size={12} color="#94A3B8" />
-                <Text style={styles.userText}>{item.user.name}</Text>
-              </>
-            )}
+          <View style={styles.contentContainer}>
+            <Text style={styles.medName}>{item.medication.name}</Text>
+            <View style={styles.detailsRow}>
+              <Text style={[styles.typeLabel, { color: styleInfo.color }]}>{styleInfo.label}</Text>
+              <Text style={styles.bullet}>•</Text>
+              <Text style={styles.qtyText}>{item.quantity} шт.</Text>
+            </View>
+            <View style={styles.footerRow}>
+              <Ionicons name="time-outline" size={12} color="#94A3B8" />
+              <Text style={styles.timeText}>
+                {new Date(item.createdAt).toLocaleString('ru-RU', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
+              {item.user && (
+                <>
+                  <Text style={styles.bullet}>•</Text>
+                  <Ionicons name="person-outline" size={12} color="#94A3B8" />
+                  <Text style={styles.userText}>{item.user.name}</Text>
+                </>
+              )}
+            </View>
           </View>
         </View>
-      </View>
+      </FadeInItem>
     );
   };
 
@@ -142,8 +198,15 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.title}>История</Text>
-        <Text style={styles.subtitle}>Недавние операции на складе</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>История</Text>
+            <Text style={styles.subtitle}>Недавние операции на складе</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
+            <Ionicons name="log-out-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -183,6 +246,16 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
     marginBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   },
   title: {
     fontSize: 28,

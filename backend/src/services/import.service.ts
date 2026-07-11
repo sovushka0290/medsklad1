@@ -84,6 +84,8 @@ export const importService = {
       const quantity = parseInt(qtyRaw) || 0;
       const mnn = (row['МНН'] || row['MNN'])?.toString().trim();
       const group = (row['Группа'] || row['Group'])?.toString().trim();
+      const priceRaw = row['Цена'] || row['Стоимость'] || row['Price'] || row['price'];
+      const price = parseFloat(priceRaw) || 0.0;
 
       if (!barcode || !name) {
         errors.push(`Строка ${i + 2}: Отсутствует штрихкод или название`);
@@ -127,7 +129,10 @@ export const importService = {
             if (batch) {
               const updatedBatch = await tx.batch.update({
                 where: { id: batch.id },
-                data: { quantity: batch.quantity + quantity }
+                data: { 
+                  quantity: batch.quantity + quantity,
+                  ...(price > 0 && { price })
+                }
               });
               // Обновляем кэш
               batchMap.set(medication.id, updatedBatch);
@@ -136,7 +141,8 @@ export const importService = {
                 data: {
                   medicationId: medication.id,
                   locationId: mainStorage!.id,
-                  quantity
+                  quantity,
+                  price: price > 0 ? price : null
                 }
               });
               // Обновляем кэш
@@ -151,7 +157,8 @@ export const importService = {
                 medicationId: medication.id,
                 locationId: mainStorage!.id,
                 userId,
-                reason: 'Импорт из Excel/1C'
+                reason: 'Импорт из Excel/1C',
+                ...(price > 0 && { price })
               }
             });
           }

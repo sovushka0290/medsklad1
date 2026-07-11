@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StatusBar
+  StatusBar,
+  Animated
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import NetInfo from '@react-native-community/netinfo';
@@ -26,6 +27,36 @@ export default function LoginScreen({ navigation }: any) {
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const triggerShake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 12, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -12, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 12, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -12, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+    ]).start();
+  };
 
   const handleLogin = async () => {
     setErrorMessage('');
@@ -33,6 +64,7 @@ export default function LoginScreen({ navigation }: any) {
 
     if (!email || !password) {
       setErrorMessage('Введите email и пароль');
+      triggerShake();
       return;
     }
 
@@ -64,6 +96,9 @@ export default function LoginScreen({ navigation }: any) {
         if (response.data.data.user?.role) {
           await SecureStore.setItemAsync('userRole', response.data.data.user.role);
         }
+        if (response.data.data.user?.name) {
+          await SecureStore.setItemAsync('userName', response.data.data.user.name);
+        }
         try {
           await registerForPushNotificationsAsync();
         } catch (pushError) {
@@ -72,9 +107,11 @@ export default function LoginScreen({ navigation }: any) {
         navigation.replace('Main');
       } else {
         setErrorMessage('Неверные данные для входа');
+        triggerShake();
       }
     } catch (error: any) {
       clearTimeout(messageTimer);
+      triggerShake();
       if (error.message === 'NO_INTERNET') {
         setErrorMessage('Отсутствует интернет-соединение. Проверьте настройки сети.');
       } else if (error.code === 'ECONNABORTED') {
@@ -107,7 +144,16 @@ export default function LoginScreen({ navigation }: any) {
           <Text style={styles.subtitle}>Система мобильной отчетности</Text>
         </View>
 
-        <View style={styles.formCard}>
+        <Animated.View style={[
+          styles.formCard, 
+          { 
+            opacity: fadeAnim, 
+            transform: [
+              { translateY: slideAnim },
+              { translateX: shakeAnim }
+            ] 
+          }
+        ]}>
           <Text style={styles.cardTitle}>Авторизация</Text>
           
           <View style={styles.inputWrapper}>
@@ -125,6 +171,8 @@ export default function LoginScreen({ navigation }: any) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
                 onFocus={() => setIsEmailFocused(true)}
                 onBlur={() => setIsEmailFocused(false)}
               />
@@ -144,10 +192,23 @@ export default function LoginScreen({ navigation }: any) {
                 placeholderTextColor="#94A3B8"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
+                autoComplete="password"
+                textContentType="password"
                 onFocus={() => setIsPasswordFocused(true)}
                 onBlur={() => setIsPasswordFocused(false)}
               />
+              <TouchableOpacity 
+                onPress={() => setShowPassword(!showPassword)} 
+                style={{ padding: 4 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+                  size={20} 
+                  color="#94a3b8" 
+                />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -177,7 +238,7 @@ export default function LoginScreen({ navigation }: any) {
               <Text style={styles.buttonText}>Войти</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

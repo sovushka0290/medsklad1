@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -12,10 +12,42 @@ import {
   Platform,
   StatusBar,
   RefreshControl,
-  ScrollView
+  ScrollView,
+  Animated,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import { useNavigation } from '@react-navigation/native';
+
+const FadeInItem = ({ children, index }: { children: React.ReactNode, index: number }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 350,
+        delay: Math.min(index * 45, 450),
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function ProceduresScreen() {
   const [procedures, setProcedures] = useState<any[]>([]);
@@ -27,6 +59,32 @@ export default function ProceduresScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<number>(1);
+  const [error, setError] = useState('');
+  const navigation = useNavigation<any>();
+
+  const sheetAnim = useRef(new Animated.Value(400)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Выход из аккаунта',
+      'Вы уверены, что хотите выйти из учетной записи?',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Выйти', 
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync('accessToken');
+            await SecureStore.deleteItemAsync('refreshToken');
+            await SecureStore.deleteItemAsync('userRole');
+            await SecureStore.deleteItemAsync('userName');
+            navigation.replace('Login');
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     fetchData();
@@ -61,30 +119,62 @@ export default function ProceduresScreen() {
   const openModal = (proc: any) => {
     setSelectedProc(proc);
     setQuantity('1');
+    setError('');
     setModalVisible(true);
+    
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sheetAnim, {
+        toValue: 0,
+        tension: 65,
+        friction: 10,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const closeModal = () => {
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetAnim, {
+        toValue: 400,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setModalVisible(false);
+    });
   };
 
   const submitLog = async () => {
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Ошибка', 'Введите корректное количество');
+      setError('Введите корректное количество');
       return;
     }
 
     setSubmitting(true);
+    setError('');
     try {
-      for (let i = 0; i < qty; i++) {
-        await api.post('/procedures/log', {
-          procedureId: selectedProc.id,
-          locationId: selectedLocId
-        });
-      }
+      await api.post('/procedures/log', {
+        procedureId: selectedProc.id,
+        locationId: selectedLocId,
+        quantity: qty
+      });
       
       Alert.alert('Успех', 'Расход медикаментов по процедуре зафиксирован!');
-      setModalVisible(false);
+      closeModal();
     } catch (e: any) {
-      const errMsg = e.response?.data?.error || 'Не удалось записать процедуру';
-      Alert.alert('Ошибка', errMsg);
+      const errMsg = e.response?.data?.error || e.response?.data?.message || 'Не удалось записать процедуру';
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -103,8 +193,15 @@ export default function ProceduresScreen() {
       <StatusBar barStyle="light-content" />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Процедуры</Text>
-        <Text style={styles.subtitle}>Фиксация расхода медикаментов по нормативам</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>Процедуры</Text>
+            <Text style={styles.subtitle}>Фиксация расхода по нормативам</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
+            <Ionicons name="log-out-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -126,93 +223,109 @@ export default function ProceduresScreen() {
             <Text style={styles.emptySubtext}>Потяните экран вниз для обновления данных</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.card} 
-            onPress={() => openModal(item)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardIcon}>
-              <Ionicons name="medical" size={20} color="#0891B2" />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardDesc} numberOfLines={2}>
-                {item.description || 'Описание отсутствует'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </TouchableOpacity>
+        renderItem={({ item, index }) => (
+          <FadeInItem index={index}>
+            <TouchableOpacity 
+              style={styles.card} 
+              onPress={() => openModal(item)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardIcon}>
+                <Ionicons name="medical" size={20} color="#0891B2" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{item.name}</Text>
+                <Text style={styles.cardDesc} numberOfLines={2}>
+                  {item.description || 'Описание отсутствует'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          </FadeInItem>
         )}
       />
 
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Фиксация процедуры</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
-                <Ionicons name="close" size={22} color="#64748b" />
-              </TouchableOpacity>
-            </View>
+      <Modal visible={modalVisible} transparent animationType="none">
+        <TouchableWithoutFeedback onPress={closeModal}>
+          <Animated.View style={[styles.modalOverlay, { opacity: backdropAnim }]}>
+            <TouchableWithoutFeedback>
+              <Animated.View style={[
+                styles.modalContent, 
+                { transform: [{ translateY: sheetAnim }] }
+              ]}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Фиксация процедуры</Text>
+                  <TouchableOpacity onPress={closeModal} style={styles.closeBtn}>
+                    <Ionicons name="close" size={22} color="#64748b" />
+                  </TouchableOpacity>
+                </View>
 
-            <Text style={styles.procName}>{selectedProc?.name}</Text>
+                <Text style={styles.procName}>{selectedProc?.name}</Text>
 
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Количество выполнений:</Text>
-              <TextInput
-                style={styles.input}
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="number-pad"
-              />
-            </View>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.label}>Количество выполнений:</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={quantity}
+                    onChangeText={setQuantity}
+                    keyboardType="number-pad"
+                  />
+                </View>
 
-            <View style={styles.inputWrapper}>
-              <Text style={styles.label}>Кабинет / Склад списания:</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.locationChips}
-                style={{ maxHeight: 50 }}
-              >
-                {locations.map((loc) => {
-                  const isSelected = selectedLocId === loc.id;
-                  return (
-                    <TouchableOpacity
-                      key={loc.id}
-                      style={[
-                        styles.chip,
-                        isSelected && styles.chipSelected
-                      ]}
-                      onPress={() => setSelectedLocId(loc.id)}
-                    >
-                      <Text style={[
-                        styles.chipText,
-                        isSelected && styles.chipTextSelected
-                      ]}>
-                        {loc.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.label}>Кабинет / Склад списания:</Text>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.locationChips}
+                    style={{ maxHeight: 50 }}
+                  >
+                    {locations.map((loc) => {
+                      const isSelected = selectedLocId === loc.id;
+                      return (
+                        <TouchableOpacity
+                          key={loc.id}
+                          style={[
+                            styles.chip,
+                            isSelected && styles.chipSelected
+                          ]}
+                          onPress={() => setSelectedLocId(loc.id)}
+                        >
+                          <Text style={[
+                            styles.chipText,
+                            isSelected && styles.chipTextSelected
+                          ]}>
+                            {loc.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
-              onPress={submitLog}
-              disabled={submitting}
-              activeOpacity={0.8}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>Записать расход</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+                {error ? (
+                  <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity 
+                  style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
+                  onPress={submitLog}
+                  disabled={submitting}
+                  activeOpacity={0.8}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Записать расход</Text>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          </Animated.View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -241,6 +354,16 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
     marginBottom: 16,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   },
   title: {
     fontSize: 28,
@@ -418,5 +541,21 @@ const styles = StyleSheet.create({
   },
   chipTextSelected: {
     color: '#FFFFFF',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
 });

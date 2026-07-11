@@ -149,49 +149,49 @@ async function main() {
   await prisma.batch.createMany({
     data: [
       // Достаточный объем (Ультракаин)
-      { quantity: 120, medicationId: ultra.id, locationId: mainStorage.id },
-      { quantity: 15, medicationId: ultra.id, locationId: cab1.id },
-      { quantity: 8, medicationId: ultra.id, locationId: cab2.id },
+      { quantity: 120, medicationId: ultra.id, locationId: mainStorage.id, price: 1500 },
+      { quantity: 15, medicationId: ultra.id, locationId: cab1.id, price: 1500 },
+      { quantity: 8, medicationId: ultra.id, locationId: cab2.id, price: 1500 },
 
       // Дефицит (Филтек Z250): всего 4 шт, минимум 5
-      { quantity: 3, medicationId: filtek.id, locationId: mainStorage.id },
-      { quantity: 1, medicationId: filtek.id, locationId: cab1.id },
+      { quantity: 3, medicationId: filtek.id, locationId: mainStorage.id, price: 8500 },
+      { quantity: 1, medicationId: filtek.id, locationId: cab1.id, price: 8500 },
 
       // Достаточный объем (Эстелайт): всего 14 шт, минимум 8
-      { quantity: 10, medicationId: estelite.id, locationId: mainStorage.id },
-      { quantity: 4, medicationId: estelite.id, locationId: cab1.id },
+      { quantity: 10, medicationId: estelite.id, locationId: mainStorage.id, price: 12000 },
+      { quantity: 4, medicationId: estelite.id, locationId: cab1.id, price: 12000 },
 
       // Дефицит (Перчатки нитриловые M): всего 15 шт, минимум 20
-      { quantity: 5, medicationId: glovesM.id, locationId: cab1.id },
-      { quantity: 10, medicationId: glovesM.id, locationId: cab3.id },
+      { quantity: 5, medicationId: glovesM.id, locationId: cab1.id, price: 250 },
+      { quantity: 10, medicationId: glovesM.id, locationId: cab3.id, price: 250 },
 
       // Достаточный объем (Маски): всего 430 шт, минимум 100
-      { quantity: 400, medicationId: masks.id, locationId: mainStorage.id },
-      { quantity: 30, medicationId: masks.id, locationId: cab1.id },
+      { quantity: 400, medicationId: masks.id, locationId: mainStorage.id, price: 50 },
+      { quantity: 30, medicationId: masks.id, locationId: cab1.id, price: 50 },
 
       // Дефицит (Альвожиль паста): всего 1 шт, минимум 3
-      { quantity: 1, medicationId: alvogyl.id, locationId: cab2.id },
+      { quantity: 1, medicationId: alvogyl.id, locationId: cab2.id, price: 14500 },
 
       // Дефицит (Максцем Элит): всего 3 шт, минимум 4
-      { quantity: 2, medicationId: maxcem.id, locationId: mainStorage.id },
-      { quantity: 1, medicationId: maxcem.id, locationId: cab1.id },
+      { quantity: 2, medicationId: maxcem.id, locationId: mainStorage.id, price: 16500 },
+      { quantity: 1, medicationId: maxcem.id, locationId: cab1.id, price: 16500 },
 
       // Прочие остатки
-      { quantity: 50, medicationId: lido.id, locationId: mainStorage.id },
-      { quantity: 8, medicationId: lido.id, locationId: cab2.id },
-      { quantity: 40, medicationId: sept.id, locationId: mainStorage.id },
-      { quantity: 12, medicationId: charisma.id, locationId: mainStorage.id },
-      { quantity: 3, medicationId: charisma.id, locationId: cab1.id },
-      { quantity: 6, medicationId: herculite.id, locationId: mainStorage.id },
-      { quantity: 35, medicationId: glovesS.id, locationId: mainStorage.id },
-      { quantity: 15, medicationId: glovesS.id, locationId: cab1.id },
-      { quantity: 80, medicationId: cotton.id, locationId: mainStorage.id },
-      { quantity: 15, medicationId: covers.id, locationId: mainStorage.id },
-      { quantity: 5, medicationId: endosolv.id, locationId: mainStorage.id },
-      { quantity: 25, medicationId: gipo.id, locationId: mainStorage.id },
-      { quantity: 5, medicationId: gipo.id, locationId: cab1.id },
-      { quantity: 8, medicationId: fuji.id, locationId: mainStorage.id },
-      { quantity: 6, medicationId: adhesor.id, locationId: mainStorage.id },
+      { quantity: 50, medicationId: lido.id, locationId: mainStorage.id, price: 300 },
+      { quantity: 8, medicationId: lido.id, locationId: cab2.id, price: 300 },
+      { quantity: 40, medicationId: sept.id, locationId: mainStorage.id, price: 1800 },
+      { quantity: 12, medicationId: charisma.id, locationId: mainStorage.id, price: 7500 },
+      { quantity: 3, medicationId: charisma.id, locationId: cab1.id, price: 7500 },
+      { quantity: 6, medicationId: herculite.id, locationId: mainStorage.id, price: 9800 },
+      { quantity: 35, medicationId: glovesS.id, locationId: mainStorage.id, price: 250 },
+      { quantity: 15, medicationId: glovesS.id, locationId: cab1.id, price: 250 },
+      { quantity: 80, medicationId: cotton.id, locationId: mainStorage.id, price: 400 },
+      { quantity: 15, medicationId: covers.id, locationId: mainStorage.id, price: 20 },
+      { quantity: 5, medicationId: endosolv.id, locationId: mainStorage.id, price: 6200 },
+      { quantity: 25, medicationId: gipo.id, locationId: mainStorage.id, price: 1100 },
+      { quantity: 5, medicationId: gipo.id, locationId: cab1.id, price: 1100 },
+      { quantity: 8, medicationId: fuji.id, locationId: mainStorage.id, price: 13500 },
+      { quantity: 6, medicationId: adhesor.id, locationId: mainStorage.id, price: 4200 },
     ],
   });
 

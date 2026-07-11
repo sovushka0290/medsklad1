@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { TransactionType } from '@prisma/client';
+import { BadRequestError } from '../lib/errors';
 
 export interface CreateTransactionInput {
   type: TransactionType;
@@ -19,7 +20,7 @@ export const transactionService = {
     const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, supplier, price } = input;
 
     if (quantity <= 0) {
-      throw new Error('Количество должно быть больше нуля');
+      throw new BadRequestError('Количество должно быть больше нуля');
     }
 
     // Проверяем существование медикамента и локации параллельно
@@ -29,10 +30,10 @@ export const transactionService = {
     ]);
 
     if (!medication) {
-      throw new Error('Медикамент не найден');
+      throw new BadRequestError('Медикамент не найден');
     }
     if (!location) {
-      throw new Error('Локация не найдена');
+      throw new BadRequestError('Локация не найдена');
     }
 
     // Выполняем в рамках транзакции базы данных для атомарности
@@ -77,10 +78,10 @@ export const transactionService = {
         }
       } else if (type === TransactionType.OUTFLOW || type === TransactionType.WRITE_OFF) {
         if (type === TransactionType.WRITE_OFF && !reason) {
-          throw new Error('Укажите причину списания');
+          throw new BadRequestError('Укажите причину списания');
         }
         if (quantityBefore < quantity) {
-          throw new Error(`Недостаточно товара на складе (в наличии: ${quantityBefore})`);
+          throw new BadRequestError(`Недостаточно товара на складе (в наличии: ${quantityBefore})`);
         }
         
         quantityAfter = quantityBefore - quantity;
@@ -102,7 +103,7 @@ export const transactionService = {
           remainingToDeduct -= deductAmount;
         }
       } else {
-        throw new Error('Неизвестный тип транзакции');
+        throw new BadRequestError('Неизвестный тип транзакции');
       }
 
       // Создаем запись транзакции

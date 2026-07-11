@@ -25,7 +25,13 @@ echo "Это займет около 10 минут. Ссылка на скачи
 echo ""
 
 cd mobile
-export EXPO_TOKEN=uFrtxk7oiik0rUj6R7j-NrjwgvRLkgzcHqkP_d9S
+if [ -z "$EXPO_TOKEN" ]; then
+  echo "⚠️  [БЕЗОПАСНОСТЬ] Внимание: EXPO_TOKEN не задан в окружении. Используется дефолтный токен."
+  echo "Рекомендуется задать переменную окружения EXPO_TOKEN для предотвращения утечки учетных данных."
+  export EXPO_TOKEN=uFrtxk7oiik0rUj6R7j-NrjwgvRLkgzcHqkP_d9S
+else
+  echo "ℹ️  Используется EXPO_TOKEN из переменной окружения."
+fi
 export ANDROID_HOME=/home/megumin/android-sdk-local
 export JAVA_HOME=/home/megumin/jdk-17
 export PATH=$JAVA_HOME/bin:$PATH

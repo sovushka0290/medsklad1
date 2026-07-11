@@ -19,7 +19,7 @@ export const auditLog = (actionName?: string) => {
       if (!actionName && req.method === 'GET') return;
 
       try {
-        const userId = (req as any).user?.userId || null;
+        const userId = (req as any).user?.id || null;
         const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
         const endpoint = `${req.method} ${req.originalUrl}`;
         const duration = Date.now() - start;

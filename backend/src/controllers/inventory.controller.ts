@@ -27,6 +27,9 @@ export const getActive = async (req: Request, res: Response) => {
 export const scanItem = async (req: Request, res: Response) => {
   try {
     const sessionId = Number(req.params.id);
+    if (isNaN(sessionId) || !Number.isInteger(sessionId) || sessionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID сессии инвентаризации' });
+    }
     const { barcode, quantityToAdd = 1 } = req.body;
 
     if (!barcode) return res.status(400).json({ error: 'Необходимо указать barcode' });
@@ -41,6 +44,9 @@ export const scanItem = async (req: Request, res: Response) => {
 export const completeSession = async (req: Request, res: Response) => {
   try {
     const sessionId = Number(req.params.id);
+    if (isNaN(sessionId) || !Number.isInteger(sessionId) || sessionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID сессии инвентаризации' });
+    }
     const session = await inventoryService.completeInventorySession(sessionId);
     res.json(session);
   } catch (error: any) {
@@ -52,6 +58,9 @@ export const completeSession = async (req: Request, res: Response) => {
 export const closeSession = async (req: Request, res: Response) => {
   try {
     const sessionId = Number(req.params.id);
+    if (isNaN(sessionId) || !Number.isInteger(sessionId) || sessionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID сессии инвентаризации' });
+    }
     const session = await inventoryService.completeInventorySession(sessionId);
     res.json(session);
   } catch (error: any) {
@@ -73,6 +82,9 @@ export const getSessionHistory = async (req: Request, res: Response) => {
 export const adjustQuantity = async (req: Request, res: Response) => {
   try {
     const sessionId = Number(req.params.id);
+    if (isNaN(sessionId) || !Number.isInteger(sessionId) || sessionId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID сессии инвентаризации' });
+    }
     const { barcode, quantityAdjustment } = req.body;
     if (!barcode) return res.status(400).json({ error: 'barcode required' });
     const item = await inventoryService.adjustInventoryItem(sessionId, barcode, quantityAdjustment ?? 0);

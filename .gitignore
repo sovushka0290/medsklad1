@@ -55,3 +55,6 @@ ssl/*.key
 secrets/
 .env.production
 backend/.env.production
+
+# APK builds
+*.apk
