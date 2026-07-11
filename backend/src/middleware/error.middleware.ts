@@ -17,7 +17,19 @@ export const errorHandler = (err: any, req: Request, res: Response, _next: NextF
     });
   }
 
-  const statusCode = err.statusCode || 500;
+  let statusCode = err.statusCode || 500;
+
+  // Force 400 status for known user-facing operational errors (e.g. stock shortages or validations)
+  if (
+    err.message && (
+      err.message.includes('Недостаточно медикамента') ||
+      err.message.includes('Процедура не найдена') ||
+      err.message.includes('Некорректный ID') ||
+      err.message.includes('обязательно')
+    )
+  ) {
+    statusCode = 400;
+  }
 
   // 🔐 SECURITY: Скрываем детали ошибки в production
   const message = process.env.NODE_ENV === 'production' && statusCode === 500
