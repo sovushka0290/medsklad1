@@ -1,8 +1,14 @@
-import { Expo } from 'expo-server-sdk';
+let ExpoClass: any;
+let expoInstance: any;
 
-// Create a new Expo SDK client
-// optionally providing an access token if you have enabled push security
-const expo = new Expo();
+const getExpo = async () => {
+  if (!expoInstance) {
+    const mod = await (new Function('return import("expo-server-sdk")')() as Promise<any>);
+    ExpoClass = mod.Expo;
+    expoInstance = new ExpoClass();
+  }
+  return { Expo: ExpoClass, expo: expoInstance };
+};
 
 export const sendPushNotification = async (
   pushTokens: string[],
@@ -10,6 +16,8 @@ export const sendPushNotification = async (
   body: string,
   data?: Record<string, unknown>
 ) => {
+  const { Expo, expo } = await getExpo();
+
   // Create the messages that you want to send to clients
   const messages = [];
   for (const pushToken of pushTokens) {

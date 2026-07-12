@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -61,6 +60,7 @@ export const recognizeMedicationFromImage = async (
     return MOCK_MEDS[Math.floor(Math.random() * MOCK_MEDS.length)];
   }
 
+  const { GoogleGenAI } = await (new Function('return import("@google/genai")')() as Promise<any>);
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const prompt = `Ты — эксперт-фармацевт с опытом работы в стоматологических клиниках Казахстана.
