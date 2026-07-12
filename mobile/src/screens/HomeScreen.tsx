@@ -22,6 +22,8 @@ interface DashboardOverview {
   totalInventoryValue: number;
   totalUniqueMedications: number;
   criticalItemsCount: number;
+  expiringItemsCount?: number;
+  proceduresLoggedToday?: number;
 }
 
 interface Transaction {
@@ -40,9 +42,11 @@ interface Transaction {
 export default function HomeScreen() {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [expiringCount, setExpiringCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userRole, setUserRole] = useState('NURSE');
   const navigation = useNavigation<any>();
 
   const cardAnims = useRef([
@@ -66,6 +70,7 @@ export default function HomeScreen() {
         api.get('/transactions')
       ]);
       setOverview(metricsRes.data.overview || null);
+      setExpiringCount(metricsRes.data.overview?.expiringItemsCount || 0);
       
       const allTx = transactionsRes.data?.data || transactionsRes.data || [];
       setRecentTransactions(allTx.slice(0, 3));
@@ -104,9 +109,9 @@ export default function HomeScreen() {
     fetchDashboard();
     const fetchUser = async () => {
       const name = await SecureStore.getItemAsync('userName');
-      if (name) {
-        setUserName(name);
-      }
+      const role = await SecureStore.getItemAsync('userRole');
+      if (name) setUserName(name);
+      if (role) setUserRole(role);
     };
     fetchUser();
   }, []);
@@ -182,59 +187,150 @@ export default function HomeScreen() {
         ) : overview ? (
           <View style={{ width: '100%' }}>
             
-            {/* 4 Stat Cards */}
-            <View style={styles.grid}>
-              <Animated.View style={[
-                styles.statCard, 
-                styles.cardCyan,
-                { opacity: cardAnims[0], transform: [{ translateY: cardSlides[0] }] }
-              ]}>
-                <View style={[styles.iconWrapper, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
-                  <Ionicons name="cube-outline" size={22} color="#0891B2" />
-                </View>
-                <Text style={styles.statValue}>{overview.totalItemsInStock}</Text>
-                <Text style={styles.statLabel}>Всего единиц на складе</Text>
-              </Animated.View>
+            {/* Role-Based Stat Cards */}
+            {userRole === 'NURSE' ? (
+              <View style={styles.grid}>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardCyan,
+                  { width: '100%', opacity: cardAnims[0], transform: [{ translateY: cardSlides[0] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
+                    <Ionicons name="checkmark-done-circle-outline" size={22} color="#0891B2" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.proceduresLoggedToday || 0}</Text>
+                  <Text style={styles.statLabel}>Выполнено процедур сегодня</Text>
+                </Animated.View>
 
-              <Animated.View style={[
-                styles.statCard, 
-                styles.cardRed,
-                { opacity: cardAnims[1], transform: [{ translateY: cardSlides[1] }] }
-              ]}>
-                <View style={[styles.iconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-                  <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
-                </View>
-                <Text style={[styles.statValue, { color: '#ef4444' }]}>{overview.criticalItemsCount}</Text>
-                <Text style={styles.statLabel}>Критических остатков</Text>
-              </Animated.View>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardRed,
+                  { opacity: cardAnims[1], transform: [{ translateY: cardSlides[1] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                    <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
+                  </View>
+                  <Text style={[styles.statValue, { color: '#ef4444' }]}>{overview.criticalItemsCount}</Text>
+                  <Text style={styles.statLabel}>Дефицитных остатков</Text>
+                </Animated.View>
 
-              <Animated.View style={[
-                styles.statCard, 
-                styles.cardGreen,
-                { opacity: cardAnims[2], transform: [{ translateY: cardSlides[2] }] }
-              ]}>
-                <View style={[styles.iconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-                  <Ionicons name="list-outline" size={22} color="#10b981" />
-                </View>
-                <Text style={styles.statValue}>{overview.totalUniqueMedications}</Text>
-                <Text style={styles.statLabel}>Уникальных позиций</Text>
-              </Animated.View>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardOrange,
+                  { opacity: cardAnims[2], transform: [{ translateY: cardSlides[2] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Ionicons name="time-outline" size={22} color="#f59e0b" />
+                  </View>
+                  <Text style={styles.statValue}>{expiringCount}</Text>
+                  <Text style={styles.statLabel}>Истекающие сроки (30д)</Text>
+                </Animated.View>
+              </View>
+            ) : userRole === 'STOREKEEPER' ? (
+              <View style={styles.grid}>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardCyan,
+                  { opacity: cardAnims[0], transform: [{ translateY: cardSlides[0] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
+                    <Ionicons name="cube-outline" size={22} color="#0891B2" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.totalItemsInStock}</Text>
+                  <Text style={styles.statLabel}>Всего на складе</Text>
+                </Animated.View>
 
-              <Animated.View style={[
-                styles.statCard, 
-                styles.cardOrange,
-                { opacity: cardAnims[3], transform: [{ translateY: cardSlides[3] }] }
-              ]}>
-                <View style={[styles.iconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                  <Ionicons name="cash-outline" size={22} color="#f59e0b" />
-                </View>
-                <Text style={styles.statValue}>{overview.totalInventoryValue.toLocaleString('ru-RU')} ₸</Text>
-                <Text style={styles.statLabel}>Оценочная стоимость</Text>
-              </Animated.View>
-            </View>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardRed,
+                  { opacity: cardAnims[1], transform: [{ translateY: cardSlides[1] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                    <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
+                  </View>
+                  <Text style={[styles.statValue, { color: '#ef4444' }]}>{overview.criticalItemsCount}</Text>
+                  <Text style={styles.statLabel}>Критических остатков</Text>
+                </Animated.View>
+
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardGreen,
+                  { opacity: cardAnims[2], transform: [{ translateY: cardSlides[2] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                    <Ionicons name="list-outline" size={22} color="#10b981" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.totalUniqueMedications}</Text>
+                  <Text style={styles.statLabel}>Уникальных позиций</Text>
+                </Animated.View>
+
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardOrange,
+                  { opacity: cardAnims[3], transform: [{ translateY: cardSlides[3] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Ionicons name="time-outline" size={22} color="#f59e0b" />
+                  </View>
+                  <Text style={styles.statValue}>{expiringCount}</Text>
+                  <Text style={styles.statLabel}>Истекающие сроки (30д)</Text>
+                </Animated.View>
+              </View>
+            ) : (
+              /* ADMIN, HEAD_NURSE, MANAGER */
+              <View style={styles.grid}>
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardCyan,
+                  { opacity: cardAnims[0], transform: [{ translateY: cardSlides[0] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
+                    <Ionicons name="cube-outline" size={22} color="#0891B2" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.totalItemsInStock}</Text>
+                  <Text style={styles.statLabel}>Всего единиц на складе</Text>
+                </Animated.View>
+
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardRed,
+                  { opacity: cardAnims[1], transform: [{ translateY: cardSlides[1] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                    <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
+                  </View>
+                  <Text style={[styles.statValue, { color: '#ef4444' }]}>{overview.criticalItemsCount}</Text>
+                  <Text style={styles.statLabel}>Критических остатков</Text>
+                </Animated.View>
+
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardGreen,
+                  { opacity: cardAnims[2], transform: [{ translateY: cardSlides[2] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                    <Ionicons name="list-outline" size={22} color="#10b981" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.totalUniqueMedications}</Text>
+                  <Text style={styles.statLabel}>Уникальных позиций</Text>
+                </Animated.View>
+
+                <Animated.View style={[
+                  styles.statCard, 
+                  styles.cardOrange,
+                  { opacity: cardAnims[3], transform: [{ translateY: cardSlides[3] }] }
+                ]}>
+                  <View style={[styles.iconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Ionicons name="cash-outline" size={22} color="#f59e0b" />
+                  </View>
+                  <Text style={styles.statValue}>{overview.totalInventoryValue.toLocaleString('ru-RU')} ₸</Text>
+                  <Text style={styles.statLabel}>Оценочная стоимость</Text>
+                </Animated.View>
+              </View>
+            )}
 
             {/* Critical Stock Level Visual Progress */}
-            {overview.totalUniqueMedications > 0 && (
+            {userRole !== 'NURSE' && overview.totalUniqueMedications > 0 && (
               <View style={styles.progressCard}>
                 <View style={styles.progressHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -260,52 +356,91 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* Quick Actions Grid */}
+            {/* Expiring Soon Widget — Ф-04 */}
+            {expiringCount > 0 && (
+              <View style={[styles.progressCard, { borderLeftWidth: 4, borderLeftColor: '#f59e0b' }]}>
+                <View style={styles.progressHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="time-outline" size={18} color="#f59e0b" />
+                    <Text style={[styles.sectionTitleCompact, { color: '#92400e' }]}>Истекающие сроки</Text>
+                  </View>
+                  <Text style={[styles.progressPercentText, { color: '#f59e0b' }]}>{expiringCount} поз.</Text>
+                </View>
+                <Text style={[styles.progressHelperText, { color: '#92400e' }]}>
+                  {expiringCount} {expiringCount === 1 ? 'позиция истекает' : expiringCount < 5 ? 'позиции истекают' : 'позиций истекают'} в течение 30 дней. Проверьте срок годности!
+                </Text>
+              </View>
+            )}
+
+            {/* Quick Actions Grid — role-based */}
             <Text style={styles.sectionHeading}>Быстрые действия</Text>
             <View style={styles.actionGrid}>
-              <TouchableOpacity 
-                style={styles.actionBtn} 
-                onPress={() => navigation.navigate('Процедуры')}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
-                  <Ionicons name="medical" size={22} color="#0891B2" />
-                </View>
-                <Text style={styles.actionBtnText}>Списать процедуру</Text>
-              </TouchableOpacity>
+              {/* STOREKEEPER + ADMIN: Приёмка */}
+              {['STOREKEEPER', 'ADMIN', 'HEAD_NURSE'].includes(userRole) && (
+                <TouchableOpacity 
+                  style={styles.actionBtn} 
+                  onPress={() => navigation.navigate('Транзакции')}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: 'rgba(8, 145, 178, 0.1)' }]}>
+                    <Ionicons name="arrow-down-circle" size={22} color="#0891B2" />
+                  </View>
+                  <Text style={styles.actionBtnText}>Приёмка товара</Text>
+                </TouchableOpacity>
+              )}
 
-              <TouchableOpacity 
-                style={styles.actionBtn} 
-                onPress={() => navigation.navigate('Склад')}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-                  <Ionicons name="barcode" size={22} color="#10b981" />
-                </View>
-                <Text style={styles.actionBtnText}>Инвентаризация</Text>
-              </TouchableOpacity>
+              {/* Списать процедуру — NURSE, HEAD_NURSE, ADMIN */}
+              {['NURSE', 'HEAD_NURSE', 'ADMIN', 'STOREKEEPER'].includes(userRole) && (
+                <TouchableOpacity 
+                  style={styles.actionBtn} 
+                  onPress={() => navigation.navigate('Процедуры')}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+                    <Ionicons name="medical" size={22} color="#10b981" />
+                  </View>
+                  <Text style={styles.actionBtnText}>Списать процедуру</Text>
+                </TouchableOpacity>
+              )}
 
-              <TouchableOpacity 
-                style={styles.actionBtn} 
-                onPress={() => navigation.navigate('Склад')}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-                  <Ionicons name="cube" size={22} color="#3B82F6" />
-                </View>
-                <Text style={styles.actionBtnText}>Список остатков</Text>
-              </TouchableOpacity>
+              {/* Инвентаризация — STOREKEEPER, ADMIN, HEAD_NURSE */}
+              {['STOREKEEPER', 'ADMIN', 'HEAD_NURSE'].includes(userRole) && (
+                <TouchableOpacity 
+                  style={styles.actionBtn} 
+                  onPress={() => navigation.navigate('Склад')}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Ionicons name="barcode" size={22} color="#f59e0b" />
+                  </View>
+                  <Text style={styles.actionBtnText}>Инвентаризация</Text>
+                </TouchableOpacity>
+              )}
 
+              {/* История — все */}
               <TouchableOpacity 
                 style={styles.actionBtn} 
                 onPress={() => navigation.navigate('История')}
                 activeOpacity={0.7}
               >
-                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                  <Ionicons name="time" size={22} color="#f59e0b" />
+                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                  <Ionicons name="time" size={22} color="#3B82F6" />
                 </View>
                 <Text style={styles.actionBtnText}>История списаний</Text>
               </TouchableOpacity>
+
+              {/* Запрос пополнения — все роли (ТЗ 3.6) */}
+              <TouchableOpacity 
+                style={styles.actionBtn} 
+                onPress={() => navigation.navigate('Пополнение')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIconBg, { backgroundColor: 'rgba(168, 85, 247, 0.1)' }]}>
+                  <Ionicons name="archive" size={22} color="#a855f7" />
+                </View>
+                <Text style={styles.actionBtnText}>Запрос пополнения</Text>
+              </TouchableOpacity>
+
             </View>
 
             {/* Recent Activity List */}

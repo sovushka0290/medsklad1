@@ -1,44 +1,75 @@
 import { Request, Response } from 'express';
 import { recognizeMedicationFromImage } from '../services/ai.service';
+import { prisma } from '../lib/prisma';
 
 export const recognizeImage = async (req: Request, res: Response) => {
   try {
-    const { base64Image, mimeType } = req.body;
+    let imageStr = req.body.base64Image || req.body.image;
+    const mimeType = req.body.mimeType;
 
-    if (!base64Image) {
-      return res.status(400).json({ error: 'Не передано изображение (base64Image)' });
+    if (!imageStr) {
+      return res.status(400).json({ error: 'Не передано изображение (base64Image / image)' });
+    }
+
+    // Очищаем base64 от data URI префикса, если он есть
+    if (typeof imageStr === 'string' && imageStr.startsWith('data:')) {
+      const match = imageStr.match(/^data:([^;]+);base64,(.*)$/);
+      if (match) {
+        imageStr = match[2];
+      }
     }
 
     // 🔐 SECURITY: Ограничиваем размер base64-изображения (DoS защита)
     const MAX_BASE64_BYTES = 2 * 1024 * 1024; // 2 MB decoded
-    if (typeof base64Image !== 'string' || Buffer.byteLength(base64Image, 'base64') > MAX_BASE64_BYTES) {
+    if (typeof imageStr !== 'string' || Buffer.byteLength(imageStr, 'base64') > MAX_BASE64_BYTES) {
       return res.status(400).json({ error: 'Изображение слишком большое (макс. 2 МБ)' });
     }
 
-    const result = await recognizeMedicationFromImage(base64Image, mimeType);
-    
-    // Нормализуем confidence в диапазон 0..1
-    let confidence = Number(result.confidence);
-    if (isNaN(confidence)) {
-      confidence = 0.0;
-    } else if (confidence > 1) {
-      confidence = confidence / 100.0;
-    }
+    const result = await recognizeMedicationFromImage(imageStr, mimeType);
 
-    if (confidence < 0.8) {
-      return res.json({
-        success: false,
-        status: 'low_confidence',
-        confidence: confidence,
-        message: 'Низкая уверенность распознавания. Пожалуйста, введите данные вручную.',
-      });
+    // Нормализуем confidence в диапазон 0..100
+    let confidence = Number(result.confidence);
+    if (isNaN(confidence)) confidence = 0;
+    confidence = Math.min(100, Math.max(0, Math.round(confidence)));
+
+    // Ищем соответствующий медикамент в базе данных по названию
+    const nameToSearch = result.name || '';
+    const matchedMed = nameToSearch.length > 2
+      ? await prisma.medication.findFirst({
+          where: {
+            name: {
+              contains: nameToSearch,
+              mode: 'insensitive',
+            },
+          },
+        })
+      : null;
+
+    // Если нашли по имени — возвращаем данные с БД
+    let medicationResponse = null;
+    if (matchedMed) {
+      medicationResponse = {
+        ...matchedMed,
+        barcode: matchedMed.barcodes[0] || 'Распознано ИИ'
+      };
     }
 
     res.json({
       success: true,
       status: 'success',
-      confidence: confidence,
-      data: result,
+      data: {
+        text: result.name || 'Неизвестно',
+        confidence,
+        // Расширенные данные с упаковки (OCR)
+        form: result.form || null,
+        manufacturer: result.manufacturer || null,
+        serialNumber: result.serialNumber || null,
+        expirationDate: result.expirationDate || null,
+        dosage: result.dosage || null,
+        ocrText: result.ocrText || null,
+        // Найденный в базе медикамент (если есть)
+        medication: medicationResponse
+      }
     });
   } catch (error: any) {
     // 🔐 SECURITY: Не раскрываем внутренние ошибки в продакшне

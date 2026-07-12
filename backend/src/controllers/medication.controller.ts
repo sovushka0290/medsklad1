@@ -10,7 +10,8 @@ const createMedicationSchema = z.object({
   unit: z.string().optional(),
   group: z.string().optional(),
   minQuantity: z.number().int().min(0).default(10),
-  barcodes: z.array(z.string()).min(1, 'Необходим хотя бы один штрихкод'),
+  barcodes: z.array(z.string()).optional(),
+  barcode: z.string().optional(),
 });
 
 export const medicationController = {
@@ -20,7 +21,28 @@ export const medicationController = {
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
       }
-      const { name, mnn, form, unit, group, minQuantity, barcodes } = parsed.data;
+      const { name, mnn, form, unit, minQuantity } = parsed.data;
+
+      let barcodes: string[] = [];
+      if (req.body.barcodes && Array.isArray(req.body.barcodes)) {
+        barcodes = req.body.barcodes;
+      } else if (req.body.barcode && typeof req.body.barcode === 'string') {
+        barcodes = [req.body.barcode];
+      }
+
+      if (barcodes.length === 0) {
+        return res.status(400).json({ success: false, error: 'Необходим хотя бы один штрихкод' });
+      }
+
+      let group = parsed.data.group;
+      if (!group && req.body.groupId) {
+        const id = Number(req.body.groupId);
+        if (id === 1) group = 'Анестетики';
+        else if (id === 2) group = 'Расходники';
+        else if (id === 3) group = 'Медикаменты';
+        else if (id === 4) group = 'Композиты';
+        else if (id === 5) group = 'Цементы';
+      }
 
       // Проверяем уникальность штрихкода
       const existing = await prisma.medication.findFirst({
@@ -139,6 +161,23 @@ export const medicationController = {
       res.json({
         success: true,
         data: medication
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getGroups(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({
+        success: true,
+        data: [
+          { id: 1, name: 'Анестетики' },
+          { id: 2, name: 'Расходники' },
+          { id: 3, name: 'Медикаменты' },
+          { id: 4, name: 'Композиты' },
+          { id: 5, name: 'Цементы' }
+        ]
       });
     } catch (error) {
       next(error);

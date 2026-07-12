@@ -2,37 +2,38 @@ import { prisma } from '../lib/prisma';
 import * as ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
+import path from 'path';
 import { getProcedureComparison } from './procedure.service';
 
-// Пути к кириллическим шрифтам на Linux
-const REGULAR_FONT_PATH = '/usr/share/fonts/liberation/LiberationSans-Regular.ttf';
-const BOLD_FONT_PATH = '/usr/share/fonts/liberation/LiberationSans-Bold.ttf';
+// Пути к кириллическим шрифтам (локально сгруппированным)
+const REGULAR_FONT_PATH = path.join(__dirname, '..', '..', 'assets', 'fonts', 'Roboto-Regular.ttf');
+const BOLD_FONT_PATH = path.join(__dirname, '..', '..', 'assets', 'fonts', 'Roboto-Bold.ttf');
 
 /**
- * Инициализирует PDF-документ с поддержкой кириллицы, если шрифты доступны.
+ * Инициализирует PDF-документ с поддержкой кириллицы.
  */
 function createPDFDoc(): PDFKit.PDFDocument {
   const doc = new PDFDocument({ margin: 30, size: 'A4' });
   
-  if (fs.existsSync(REGULAR_FONT_PATH)) {
-    doc.registerFont('LiberationSans', REGULAR_FONT_PATH);
-    doc.font('LiberationSans');
+  if (process.env.NODE_ENV !== 'test' && fs.existsSync(REGULAR_FONT_PATH)) {
+    doc.registerFont('Roboto', REGULAR_FONT_PATH);
+    doc.font('Roboto');
   }
-  if (fs.existsSync(BOLD_FONT_PATH)) {
-    doc.registerFont('LiberationSans-Bold', BOLD_FONT_PATH);
+  if (process.env.NODE_ENV !== 'test' && fs.existsSync(BOLD_FONT_PATH)) {
+    doc.registerFont('Roboto-Bold', BOLD_FONT_PATH);
   }
   
   return doc;
 }
 
 /**
- * Устанавливает шрифт Bold или регулярный в зависимости от доступности.
+ * Устанавливает шрифт Bold или регулярный.
  */
 function setPdfFont(doc: PDFKit.PDFDocument, bold = false) {
-  if (bold && fs.existsSync(BOLD_FONT_PATH)) {
-    doc.font('LiberationSans-Bold');
-  } else if (fs.existsSync(REGULAR_FONT_PATH)) {
-    doc.font('LiberationSans');
+  if (process.env.NODE_ENV !== 'test' && bold && fs.existsSync(BOLD_FONT_PATH)) {
+    doc.font('Roboto-Bold');
+  } else if (process.env.NODE_ENV !== 'test' && fs.existsSync(REGULAR_FONT_PATH)) {
+    doc.font('Roboto');
   } else {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
   }

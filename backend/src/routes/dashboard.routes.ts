@@ -6,16 +6,16 @@ import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-// Метрики доступны Руководителю, Главной медсестре и Админу
+// Метрики доступны Руководителю, Главной медсестре, Админу, Кладовщику и Медсестре (для мобильного дашборда)
 router.get(
   '/metrics',
   authMiddleware,
-  roleGuard(['ADMIN', 'MANAGER', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'MANAGER', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE']),
   asyncHandler(async (req, res) => {
     const filter = req.query.filter as string | undefined;
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
-    const metrics = await getDashboardMetrics(filter, startDate, endDate);
+    const metrics = await getDashboardMetrics(filter, startDate, endDate, (req as any).user);
     res.json(metrics);
   })
 );

@@ -11,9 +11,13 @@ jest.mock('../src/lib/prisma', () => ({
     },
     transaction: {
       groupBy: jest.fn(),
+      findMany: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
+    },
+    procedureLog: {
+      count: jest.fn(),
     },
     auditLog: {
       create: jest.fn(),
@@ -43,6 +47,8 @@ describe('Dashboard Controller Tests', () => {
     (prisma.batch.aggregate as jest.Mock).mockResolvedValue({ _sum: { quantity: 100 } });
     (prisma.medication.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.transaction.groupBy as jest.Mock).mockResolvedValue([]);
+    (prisma.transaction.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.procedureLog.count as jest.Mock).mockResolvedValue(0);
     (prisma.$queryRaw as jest.Mock).mockResolvedValue([]);
   });
 

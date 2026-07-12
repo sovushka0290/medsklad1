@@ -157,8 +157,7 @@ export const importService = {
                 medicationId: medication.id,
                 locationId: mainStorage!.id,
                 userId,
-                reason: 'Импорт из Excel/1C',
-                ...(price > 0 && { price })
+                reason: 'Импорт из Excel/1C'
               }
             });
           }

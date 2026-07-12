@@ -14,7 +14,8 @@ import {
   RefreshControl,
   ScrollView,
   Animated,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -287,119 +288,130 @@ export default function ProceduresScreen() {
         <TouchableWithoutFeedback onPress={closeModal}>
           <Animated.View style={[styles.modalOverlay, { opacity: backdropAnim }]}>
             <TouchableWithoutFeedback>
-              <Animated.View style={[
-                styles.modalContent, 
-                { transform: [{ translateY: sheetAnim }] }
-              ]}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Фиксация расхода</Text>
-                  <TouchableOpacity onPress={closeModal} style={styles.closeBtn}>
-                    <Ionicons name="close" size={22} color="#64748b" />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.procName}>{selectedProc?.name}</Text>
-
-                {/* Norms list inside sheet */}
-                {selectedProc?.norms && selectedProc.norms.length > 0 && (
-                  <View style={styles.normsContainer}>
-                    <Text style={styles.normsTitle}>Требуемые медикаменты:</Text>
-                    {selectedProc.norms.map((norm: any, idx: number) => (
-                      <View key={norm.id || idx} style={styles.normRow}>
-                        <Ionicons name="cube-outline" size={13} color="#94A3B8" />
-                        <Text style={styles.normMedName} numberOfLines={1}>
-                          {norm.medication?.name || `ID ${norm.medicationId}`}
-                        </Text>
-                        <Text style={styles.normQty}>
-                          {(norm.expectedQuantity * (parseInt(quantity, 10) || 1)).toFixed(1)} шт
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Plus / Minus Counter for Quantity */}
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.label}>Количество выполнений:</Text>
-                  <View style={styles.counterContainer}>
-                    <TouchableOpacity 
-                      style={styles.counterBtn} 
-                      onPress={decreaseQty}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="remove" size={22} color="#0891B2" />
-                    </TouchableOpacity>
-                    
-                    <TextInput
-                      style={styles.counterInput}
-                      value={quantity}
-                      onChangeText={setQuantity}
-                      keyboardType="number-pad"
-                      textAlign="center"
-                    />
-
-                    <TouchableOpacity 
-                      style={styles.counterBtn} 
-                      onPress={increaseQty}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="add" size={22} color="#0891B2" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.label}>Кабинет / Склад списания:</Text>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.locationChips}
-                    style={{ maxHeight: 50 }}
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ width: '100%' }}
+              >
+                <Animated.View style={[
+                  styles.modalContent, 
+                  { transform: [{ translateY: sheetAnim }] }
+                ]}>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 8 }}
                   >
-                    {locations.map((loc) => {
-                      const isSelected = selectedLocId === loc.id;
-                      return (
-                        <TouchableOpacity
-                          key={loc.id}
-                          style={[
-                            styles.chip,
-                            isSelected && styles.chipSelected
-                          ]}
-                          onPress={() => setSelectedLocId(loc.id)}
-                          activeOpacity={0.8}
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Фиксация расхода</Text>
+                      <TouchableOpacity onPress={closeModal} style={styles.closeBtn}>
+                        <Ionicons name="close" size={22} color="#64748b" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.procName}>{selectedProc?.name}</Text>
+
+                    {/* Norms list inside sheet */}
+                    {selectedProc?.norms && selectedProc.norms.length > 0 && (
+                      <View style={styles.normsContainer}>
+                        <Text style={styles.normsTitle}>Требуемые медикаменты:</Text>
+                        {selectedProc.norms.map((norm: any, idx: number) => (
+                          <View key={norm.id || idx} style={styles.normRow}>
+                            <Ionicons name="cube-outline" size={13} color="#94A3B8" />
+                            <Text style={styles.normMedName} numberOfLines={1}>
+                              {norm.medication?.name || `ID ${norm.medicationId}`}
+                            </Text>
+                            <Text style={styles.normQty}>
+                              {(norm.expectedQuantity * (parseInt(quantity, 10) || 1)).toFixed(1)} шт
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Plus / Minus Counter for Quantity */}
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.label}>Количество выполнений:</Text>
+                      <View style={styles.counterContainer}>
+                        <TouchableOpacity 
+                          style={styles.counterBtn} 
+                          onPress={decreaseQty}
+                          activeOpacity={0.7}
                         >
-                          <Text style={[
-                            styles.chipText,
-                            isSelected && styles.chipTextSelected
-                          ]}>
-                            {loc.name}
-                          </Text>
+                          <Ionicons name="remove" size={22} color="#0891B2" />
                         </TouchableOpacity>
-                      );
-                    })}
+                        
+                        <TextInput
+                          style={styles.counterInput}
+                          value={quantity}
+                          onChangeText={setQuantity}
+                          keyboardType="number-pad"
+                          textAlign="center"
+                        />
+
+                        <TouchableOpacity 
+                          style={styles.counterBtn} 
+                          onPress={increaseQty}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={22} color="#0891B2" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.label}>Кабинет / Склад списания:</Text>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.locationChips}
+                        style={{ maxHeight: 50 }}
+                      >
+                        {locations.map((loc) => {
+                          const isSelected = selectedLocId === loc.id;
+                          return (
+                            <TouchableOpacity
+                              key={loc.id}
+                              style={[
+                                styles.chip,
+                                isSelected && styles.chipSelected
+                              ]}
+                              onPress={() => setSelectedLocId(loc.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[
+                                styles.chipText,
+                                isSelected && styles.chipTextSelected
+                              ]}>
+                                {loc.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+
+                    {error ? (
+                      <View style={styles.errorContainer}>
+                        <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                        <Text style={styles.errorText}>{error}</Text>
+                      </View>
+                    ) : null}
+
+                    <TouchableOpacity 
+                      style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
+                      onPress={submitLog}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.submitBtnText}>Записать расход</Text>
+                      )}
+                    </TouchableOpacity>
                   </ScrollView>
-                </View>
-
-                {error ? (
-                  <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
-                    <Text style={styles.errorText}>{error}</Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity 
-                  style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
-                  onPress={submitLog}
-                  disabled={submitting}
-                  activeOpacity={0.8}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>Записать расход</Text>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
+                </Animated.View>
+              </KeyboardAvoidingView>
             </TouchableWithoutFeedback>
           </Animated.View>
         </TouchableWithoutFeedback>

@@ -20,6 +20,7 @@ import exportRoutes from './routes/export.routes';
 import aiRoutes from './routes/ai.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import userRoutes from './routes/user.routes';
+import replenishmentRoutes from './routes/replenishment.routes';
 import { errorHandler } from './middleware/error.middleware';
 import { auditMiddleware } from './middleware/audit.middleware';
 
@@ -69,6 +70,7 @@ app.use('/api/export', exportRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/replenishment', replenishmentRoutes);
 
 // Health check — без раскрытия версии
 app.get('/api/health', (req: Request, res: Response) => {

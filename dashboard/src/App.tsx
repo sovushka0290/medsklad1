@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import Skeleton from './components/Skeleton';
+import { ErrorToastContainer } from './components/ErrorToast';
 
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -10,6 +11,7 @@ const Inventory = lazy(() => import('./pages/Inventory'));
 const Procedures = lazy(() => import('./pages/Procedures'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Import = lazy(() => import('./pages/Import'));
+const UsersPage = lazy(() => import('./pages/Users'));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
@@ -41,10 +43,13 @@ function App() {
             <Route path="/procedures" element={<PrivateRoute><Procedures /></PrivateRoute>} />
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
             <Route path="/import" element={<PrivateRoute><Import /></PrivateRoute>} />
+            <Route path="/users" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>
       </Router>
+      {/* Global API error toasts — rendered outside Router to survive route changes */}
+      <ErrorToastContainer />
     </ErrorBoundary>
   );
 }

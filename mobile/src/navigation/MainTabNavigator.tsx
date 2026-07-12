@@ -10,6 +10,8 @@ import InventoryScreen from '../screens/InventoryScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import BarcodeScanner from '../components/BarcodeScanner';
 import ProceduresScreen from '../screens/ProceduresScreen';
+import TransactionScreen from '../screens/TransactionScreen';
+import ReplenishmentScreen from '../screens/ReplenishmentScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -65,6 +67,9 @@ export default function MainTabNavigator() {
   const showHistory = ['ADMIN', 'MANAGER', 'HEAD_NURSE', 'STOREKEEPER'].includes(role!);
   const showScanner = ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE'].includes(role!);
   const showProcedures = ['ADMIN', 'HEAD_NURSE', 'NURSE'].includes(role!);
+  const showTransaction = ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(role!);
+  // ТЗ 3.6: запрос пополнения — все роли, кроме MANAGER
+  const showReplenishment = ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE'].includes(role!);
 
   return (
     <Tab.Navigator
@@ -77,6 +82,8 @@ export default function MainTabNavigator() {
           else if (route.name === 'Сканер') iconName = focused ? 'barcode' : 'barcode-outline';
           else if (route.name === 'История') iconName = focused ? 'time' : 'time-outline';
           else if (route.name === 'Процедуры') iconName = focused ? 'medical' : 'medical-outline';
+          else if (route.name === 'Транзакции') iconName = focused ? 'add-circle' : 'add-circle-outline';
+          else if (route.name === 'Пополнение') iconName = focused ? 'archive' : 'archive-outline';
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -89,6 +96,7 @@ export default function MainTabNavigator() {
       {showDashboard && <Tab.Screen name="Главная" component={HomeScreen} />}
       {showInventory && <Tab.Screen name="Склад" component={InventoryScreen} />}
       {showProcedures && <Tab.Screen name="Процедуры" component={ProceduresScreen} />}
+      {showTransaction && <Tab.Screen name="Транзакции" component={TransactionScreen} />}
       {showScanner && (
         <Tab.Screen 
           name="Сканер" 
@@ -96,7 +104,9 @@ export default function MainTabNavigator() {
           options={{ headerShown: false }}
         />
       )}
+      {showReplenishment && <Tab.Screen name="Пополнение" component={ReplenishmentScreen} />}
       {showHistory && <Tab.Screen name="История" component={HistoryScreen} />}
     </Tab.Navigator>
   );
 }
+

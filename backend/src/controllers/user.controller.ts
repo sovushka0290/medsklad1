@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import bcrypt from 'bcrypt';
 
 export const updatePushToken = async (req: Request, res: Response) => {
   try {
@@ -63,6 +64,108 @@ export const getAuditLogs = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+};
+
+export const getUsers = async (req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({ success: true, data: users });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+};
+
+export const createUser = async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, role } = req.body;
+
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Email, пароль и роль обязательны' });
+    }
+
+    // Check if user already exists
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ error: 'Пользователь с таким email уже существует' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        role,
+        isActive: true
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.status(201).json({ success: true, data: newUser });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Ошибка сервера' });
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, role, isActive } = req.body;
+
+    const parsedId = parseInt(id, 10);
+    if (isNaN(parsedId)) {
+      return res.status(400).json({ error: 'Неверный ID пользователя' });
+    }
+
+    // Check if user exists
+    const existing = await prisma.user.findUnique({ where: { id: parsedId } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: parsedId },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(role !== undefined && { role }),
+        ...(isActive !== undefined && { isActive }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Ошибка сервера' });
   }
 };
 

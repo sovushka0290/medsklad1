@@ -5,10 +5,13 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Начало очистки старых данных...');
+  await prisma.procedureLog.deleteMany();
+  await prisma.procedureNorm.deleteMany();
+  await prisma.procedure.deleteMany();
   await prisma.inventoryItem.deleteMany();
   await prisma.inventorySession.deleteMany();
-  await prisma.batch.deleteMany();
   await prisma.transaction.deleteMany();
+  await prisma.batch.deleteMany();
   await prisma.medication.deleteMany();
   await prisma.location.deleteMany();
   await prisma.user.deleteMany();
@@ -49,6 +52,15 @@ async function main() {
       password: hashedPassword,
       role: 'NURSE',
       name: 'Медсестра Кабинет 1'
+    }
+  });
+
+  await prisma.user.create({
+    data: {
+      email: 'manager@medsklad.kz',
+      password: hashedPassword,
+      role: 'MANAGER',
+      name: 'Менеджер клиники'
     }
   });
 
@@ -146,57 +158,62 @@ async function main() {
 
   console.log('Распределение партий по складам...');
 
+  const now = new Date();
+  const dateExpired = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000); // 15 дней назад
+  const dateExpiringSoon = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000); // 10 дней вперед (истекает скоро)
+  const dateFuture = new Date(now.getTime() + 240 * 24 * 60 * 60 * 1000); // 240 дней вперед (стабильный срок)
+
   await prisma.batch.createMany({
     data: [
       // Достаточный объем (Ультракаин)
-      { quantity: 120, medicationId: ultra.id, locationId: mainStorage.id, price: 1500 },
-      { quantity: 15, medicationId: ultra.id, locationId: cab1.id, price: 1500 },
-      { quantity: 8, medicationId: ultra.id, locationId: cab2.id, price: 1500 },
+      { quantity: 120, medicationId: ultra.id, locationId: mainStorage.id, price: 1500, serialNumber: 'ULT-1092', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 15, medicationId: ultra.id, locationId: cab1.id, price: 1500, serialNumber: 'ULT-1092', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 8, medicationId: ultra.id, locationId: cab2.id, price: 1500, serialNumber: 'ULT-0988', expirationDate: dateExpiringSoon, supplier: 'ТОО Стоматология-Снаб' },
 
-      // Дефицит (Филтек Z250): всего 4 шт, минимум 5
-      { quantity: 3, medicationId: filtek.id, locationId: mainStorage.id, price: 8500 },
-      { quantity: 1, medicationId: filtek.id, locationId: cab1.id, price: 8500 },
+      // Дефицит (Филтек Z250)
+      { quantity: 3, medicationId: filtek.id, locationId: mainStorage.id, price: 8500, serialNumber: 'FIL-9921', expirationDate: dateFuture, supplier: 'ТОО Актобе-Фарм' },
+      { quantity: 1, medicationId: filtek.id, locationId: cab1.id, price: 8500, serialNumber: 'FIL-9921', expirationDate: dateFuture, supplier: 'ТОО Актобе-Фарм' },
 
-      // Достаточный объем (Эстелайт): всего 14 шт, минимум 8
-      { quantity: 10, medicationId: estelite.id, locationId: mainStorage.id, price: 12000 },
-      { quantity: 4, medicationId: estelite.id, locationId: cab1.id, price: 12000 },
+      // Достаточный объем (Эстелайт)
+      { quantity: 10, medicationId: estelite.id, locationId: mainStorage.id, price: 12000, serialNumber: 'EST-4402', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 4, medicationId: estelite.id, locationId: cab1.id, price: 12000, serialNumber: 'EST-4402', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
 
-      // Дефицит (Перчатки нитриловые M): всего 15 шт, минимум 20
-      { quantity: 5, medicationId: glovesM.id, locationId: cab1.id, price: 250 },
-      { quantity: 10, medicationId: glovesM.id, locationId: cab3.id, price: 250 },
+      // Дефицит (Перчатки нитриловые M)
+      { quantity: 5, medicationId: glovesM.id, locationId: cab1.id, price: 250, serialNumber: 'GLV-M-01', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
+      { quantity: 10, medicationId: glovesM.id, locationId: cab3.id, price: 250, serialNumber: 'GLV-M-01', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
 
-      // Достаточный объем (Маски): всего 430 шт, минимум 100
-      { quantity: 400, medicationId: masks.id, locationId: mainStorage.id, price: 50 },
-      { quantity: 30, medicationId: masks.id, locationId: cab1.id, price: 50 },
+      // Достаточный объем (Маски)
+      { quantity: 400, medicationId: masks.id, locationId: mainStorage.id, price: 50, serialNumber: 'MSK-2026', expirationDate: dateFuture, supplier: 'АО ФармСтандарт' },
+      { quantity: 30, medicationId: masks.id, locationId: cab1.id, price: 50, serialNumber: 'MSK-2026', expirationDate: dateFuture, supplier: 'АО ФармСтандарт' },
 
-      // Дефицит (Альвожиль паста): всего 1 шт, минимум 3
-      { quantity: 1, medicationId: alvogyl.id, locationId: cab2.id, price: 14500 },
+      // Дефицит (Альвожиль паста)
+      { quantity: 1, medicationId: alvogyl.id, locationId: cab2.id, price: 14500, serialNumber: 'ALV-3301', expirationDate: dateExpiringSoon, supplier: 'ТОО Актобе-Фарм' },
 
-      // Дефицит (Максцем Элит): всего 3 шт, минимум 4
-      { quantity: 2, medicationId: maxcem.id, locationId: mainStorage.id, price: 16500 },
-      { quantity: 1, medicationId: maxcem.id, locationId: cab1.id, price: 16500 },
+      // Дефицит (Максцем Элит)
+      { quantity: 2, medicationId: maxcem.id, locationId: mainStorage.id, price: 16500, serialNumber: 'MXC-9011', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 1, medicationId: maxcem.id, locationId: cab1.id, price: 16500, serialNumber: 'MXC-9011', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
 
       // Прочие остатки
-      { quantity: 50, medicationId: lido.id, locationId: mainStorage.id, price: 300 },
-      { quantity: 8, medicationId: lido.id, locationId: cab2.id, price: 300 },
-      { quantity: 40, medicationId: sept.id, locationId: mainStorage.id, price: 1800 },
-      { quantity: 12, medicationId: charisma.id, locationId: mainStorage.id, price: 7500 },
-      { quantity: 3, medicationId: charisma.id, locationId: cab1.id, price: 7500 },
-      { quantity: 6, medicationId: herculite.id, locationId: mainStorage.id, price: 9800 },
-      { quantity: 35, medicationId: glovesS.id, locationId: mainStorage.id, price: 250 },
-      { quantity: 15, medicationId: glovesS.id, locationId: cab1.id, price: 250 },
-      { quantity: 80, medicationId: cotton.id, locationId: mainStorage.id, price: 400 },
-      { quantity: 15, medicationId: covers.id, locationId: mainStorage.id, price: 20 },
-      { quantity: 5, medicationId: endosolv.id, locationId: mainStorage.id, price: 6200 },
-      { quantity: 25, medicationId: gipo.id, locationId: mainStorage.id, price: 1100 },
-      { quantity: 5, medicationId: gipo.id, locationId: cab1.id, price: 1100 },
-      { quantity: 8, medicationId: fuji.id, locationId: mainStorage.id, price: 13500 },
-      { quantity: 6, medicationId: adhesor.id, locationId: mainStorage.id, price: 4200 },
+      { quantity: 50, medicationId: lido.id, locationId: mainStorage.id, price: 300, serialNumber: 'LID-5510', expirationDate: dateExpired, supplier: 'АО ФармСтандарт' }, // просрочено
+      { quantity: 8, medicationId: lido.id, locationId: cab2.id, price: 300, serialNumber: 'LID-5511', expirationDate: dateFuture, supplier: 'АО ФармСтандарт' },
+      { quantity: 40, medicationId: sept.id, locationId: mainStorage.id, price: 1800, serialNumber: 'SPT-1234', expirationDate: dateFuture, supplier: 'ТОО Актобе-Фарм' },
+      { quantity: 12, medicationId: charisma.id, locationId: mainStorage.id, price: 7500, serialNumber: 'CHR-9912', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 3, medicationId: charisma.id, locationId: cab1.id, price: 7500, serialNumber: 'CHR-9912', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 6, medicationId: herculite.id, locationId: mainStorage.id, price: 9800, serialNumber: 'HER-4411', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
+      { quantity: 35, medicationId: glovesS.id, locationId: mainStorage.id, price: 250, serialNumber: 'GLV-S-02', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
+      { quantity: 15, medicationId: glovesS.id, locationId: cab1.id, price: 250, serialNumber: 'GLV-S-02', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
+      { quantity: 80, medicationId: cotton.id, locationId: mainStorage.id, price: 400, serialNumber: 'CTN-3011', expirationDate: dateFuture, supplier: 'АО ФармСтандарт' },
+      { quantity: 15, medicationId: covers.id, locationId: mainStorage.id, price: 20, serialNumber: 'CVR-8890', expirationDate: dateFuture, supplier: 'АО ФармСтандарт' },
+      { quantity: 5, medicationId: endosolv.id, locationId: mainStorage.id, price: 6200, serialNumber: 'END-0012', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 25, medicationId: gipo.id, locationId: mainStorage.id, price: 1100, serialNumber: 'GIP-2231', expirationDate: dateFuture, supplier: 'ТОО Актобе-Фарм' },
+      { quantity: 5, medicationId: gipo.id, locationId: cab1.id, price: 1100, serialNumber: 'GIP-2231', expirationDate: dateFuture, supplier: 'ТОО Актобе-Фарм' },
+      { quantity: 8, medicationId: fuji.id, locationId: mainStorage.id, price: 13500, serialNumber: 'FUJ-0091', expirationDate: dateFuture, supplier: 'ТОО МедМаркет' },
+      { quantity: 6, medicationId: adhesor.id, locationId: mainStorage.id, price: 4200, serialNumber: 'ADH-7711', expirationDate: dateFuture, supplier: 'ТОО Стоматология-Снаб' },
     ],
   });
 
   console.log('Создание процедур и нормативов по ТЗ...');
-  await prisma.procedure.create({
+  const proc1 = await prisma.procedure.create({
     data: {
       name: 'Лечение кариеса (пломбирование)',
       description: 'Стандартная процедура пломбирования композитным материалом светового отверждения с анестезией.',
@@ -212,7 +229,7 @@ async function main() {
     },
   });
 
-  await prisma.procedure.create({
+  const proc2 = await prisma.procedure.create({
     data: {
       name: 'Удаление зуба (простое)',
       description: 'Хирургическое удаление однокорневого или многокорневого зуба под местной анестезией.',
@@ -227,7 +244,7 @@ async function main() {
     },
   });
 
-  await prisma.procedure.create({
+  const proc3 = await prisma.procedure.create({
     data: {
       name: 'Профессиональная гигиена полости рта',
       description: 'Ультразвуковая чистка зубов, AirFlow полировка и фторирование.',
@@ -241,7 +258,67 @@ async function main() {
     },
   });
 
-  console.log('Сидинг успешно завершен! Сгенерированы локации, номенклатура, остатки и процедуры.');
+  console.log('Создание логов процедур и транзакций расхода для графиков дашборда...');
+  const nurseUser = await prisma.user.findFirst({ where: { email: 'nurse@medsklad.kz' } });
+  const nurseId = nurseUser ? nurseUser.id : 4;
+
+  // Генерируем данные за последние 7 дней для графиков
+  for (let i = 0; i < 7; i++) {
+    const day = new Date();
+    day.setDate(day.getDate() - i);
+
+    // Добавляем логи процедур
+    const count1 = Math.floor(Math.random() * 4) + 1;
+    for (let k = 0; k < count1; k++) {
+      await prisma.procedureLog.create({
+        data: {
+          procedureId: proc1.id,
+          locationId: cab1.id,
+          userId: nurseId,
+          createdAt: day
+        }
+      });
+    }
+
+    const count2 = Math.floor(Math.random() * 3) + 1;
+    for (let k = 0; k < count2; k++) {
+      await prisma.procedureLog.create({
+        data: {
+          procedureId: proc2.id,
+          locationId: cab2.id,
+          userId: nurseId,
+          createdAt: day
+        }
+      });
+    }
+
+    // Добавляем транзакции расхода
+    await prisma.transaction.create({
+      data: {
+        type: 'OUTFLOW',
+        quantity: Math.floor(Math.random() * 12) + 5,
+        medicationId: ultra.id,
+        locationId: cab1.id,
+        userId: nurseId,
+        reason: 'Лечение кариеса',
+        createdAt: day
+      }
+    });
+
+    await prisma.transaction.create({
+      data: {
+        type: 'WRITE_OFF',
+        quantity: Math.floor(Math.random() * 5) + 1,
+        medicationId: glovesM.id,
+        locationId: cab1.id,
+        userId: nurseId,
+        reason: 'Списание по износу / браку',
+        createdAt: day
+      }
+    });
+  }
+
+  console.log('Сидинг успешно завершен! Сгенерированы локации, номенклатура, детальные остатки, логи процедур и транзакции.');
 }
 
 main()

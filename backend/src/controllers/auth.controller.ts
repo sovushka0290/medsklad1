@@ -13,7 +13,7 @@ export const authController = {
 
       // 🔐 SECURITY: Всегда вычисляем bcrypt.compare для защиты от timing attack
       // (время ответа одинаковое независимо от того, найден пользователь или нет)
-      const dummyHash = '$2b$12$SECURITY_DUMMY_HASH_prevent_timing_attack_medsklad';
+      const dummyHash = '$2b$10$CoYmZ7n5Zc9j/jH5O9WkNe1234567890123456789012345678901';
       const isPasswordValid = user
         ? await bcrypt.compare(password, user.password)
         : await bcrypt.compare(password, dummyHash);

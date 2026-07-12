@@ -4,7 +4,7 @@ import { transactionService } from '../services/transaction.service';
 export const transactionController = {
   async createTransaction(req: Request, res: Response, next: NextFunction) {
     try {
-      const { type, quantity, medicationId, locationId, reason } = req.body;
+      const { type, quantity, medicationId, locationId, reason, expirationDate, serialNumber, supplier, price } = req.body;
       const userId = (req as any).user?.id;
 
       const tx = await transactionService.createTransaction({
@@ -14,6 +14,10 @@ export const transactionController = {
         locationId,
         userId,
         reason,
+        expirationDate,
+        serialNumber,
+        supplier,
+        price,
       });
 
       res.status(201).json(tx);

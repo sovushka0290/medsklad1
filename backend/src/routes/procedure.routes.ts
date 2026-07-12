@@ -10,7 +10,7 @@ const router = Router();
 router.post(
   '/',
   authMiddleware,
-  roleGuard(['ADMIN', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'STOREKEEPER', 'HEAD_NURSE']),
   asyncHandler(async (req, res) => {
     const procedure = await createProcedure(req.body);
     res.status(201).json({ success: true, data: procedure });
@@ -44,7 +44,7 @@ router.post(
 router.get(
   '/comparison',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(async (req, res) => {
     const comparison = await getProcedureComparison();
     res.json({ success: true, data: comparison });
@@ -54,7 +54,7 @@ router.get(
 router.get(
   '/compare',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(async (req, res) => {
     const comparison = await getProcedureComparison();
     res.json({ success: true, data: comparison });

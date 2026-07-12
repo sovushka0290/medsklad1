@@ -12,8 +12,10 @@ router.get('/medications/critical', authMiddleware, roleGuard(['ADMIN', 'HEAD_NU
 router.get('/inventory', authMiddleware, medicationController.getInventory);
 // Создание нового медикамента (Ф-17: из экрана сканирования)
 router.post('/medications', authMiddleware, roleGuard(['ADMIN', 'STOREKEEPER']), medicationController.createMedication);
+router.post('/medication', authMiddleware, roleGuard(['ADMIN', 'STOREKEEPER']), medicationController.createMedication);
 router.put('/medications/:id', authMiddleware, roleGuard(['ADMIN', 'STOREKEEPER']), medicationController.updateMedication);
 router.get('/locations', authMiddleware, medicationController.getLocations);
+router.get('/groups', authMiddleware, medicationController.getGroups);
 router.post('/medication/scan', authMiddleware, medicationController.scanMedication);
 router.post('/medications/scan', authMiddleware, medicationController.scanMedication);
 

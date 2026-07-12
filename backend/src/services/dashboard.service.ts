@@ -3,11 +3,83 @@ import NodeCache from 'node-cache';
 
 const dashboardCache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 
-export const getDashboardMetrics = async (filter?: string, startDate?: string, endDate?: string) => {
-  const cacheKey = `dashboard_metrics_${filter || 'week'}_${startDate || ''}_${endDate || ''}`;
+export const getDashboardMetrics = async (
+  filter?: string,
+  startDate?: string,
+  endDate?: string,
+  user?: { id: number; role: string }
+) => {
+  const cacheKey = `dashboard_metrics_${user?.role || ''}_${user?.id || ''}_${filter || 'week'}_${startDate || ''}_${endDate || ''}`;
   const cached = dashboardCache.get(cacheKey);
   if (cached) {
     return cached;
+  }
+
+  if (user?.role === 'NURSE') {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const procedureLogsCount = await prisma.procedureLog.count({
+      where: {
+        userId: user.id,
+        createdAt: { gte: todayStart }
+      }
+    });
+
+    const allMeds = await prisma.medication.findMany({
+      select: {
+        id: true,
+        minQuantity: true,
+        batches: {
+          select: { quantity: true, expirationDate: true }
+        }
+      }
+    });
+
+    let criticalCount = 0;
+    let expiringCount = 0;
+    const nowTime = new Date();
+    const threshold30 = new Date();
+    threshold30.setDate(threshold30.getDate() + 30);
+
+    for (const med of allMeds) {
+      let medStock = 0;
+      let isExpiringSoon = false;
+      for (const batch of med.batches) {
+        medStock += batch.quantity;
+        if (batch.quantity > 0 && batch.expirationDate) {
+          const daysLeft = Math.ceil((batch.expirationDate.getTime() - nowTime.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysLeft >= 0 && daysLeft <= 30) {
+            isExpiringSoon = true;
+            expiringCount++;
+          }
+          if (daysLeft < 0) {
+            isExpiringSoon = true;
+          }
+        }
+      }
+      if (medStock <= med.minQuantity || isExpiringSoon) {
+        criticalCount++;
+      }
+    }
+
+    const result = {
+      overview: {
+        proceduresLoggedToday: procedureLogsCount,
+        criticalItemsCount: criticalCount,
+        expiringItemsCount: expiringCount,
+        totalItemsInStock: 0,
+        totalInventoryValue: 0,
+        totalUniqueMedications: 0
+      },
+      criticalItems: [],
+      expiringItems: [],
+      top10Consumed: [],
+      consumptionTrend: []
+    };
+
+    dashboardCache.set(cacheKey, result);
+    return result;
   }
 
   // Вычисляем диапазон дат
@@ -38,8 +110,8 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
   }
 
   // Параллельные запросы для скорости
-  const [batchAgg, allBatches, outflows, consumptionTrendRaw] = await Promise.all([
-    // 1. Агрегация общих показателей через SQL (ПЕРФ-1: не загружаем все записи в память)
+  const [batchAgg, allBatches, outflows, rawTrendTx] = await Promise.all([
+    // 1. Агрегация общих показателей
     prisma.batch.aggregate({
       _sum: { quantity: true },
     }),
@@ -65,24 +137,36 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
       take: 10,
     }),
 
-    // 4. Динамика расхода за период
-    prisma.$queryRaw<{ date: string; total: number }[]>`
-      SELECT DATE(t."createdAt") as date, CAST(SUM(t."quantity") AS FLOAT) as total
-      FROM "Transaction" t
-      WHERE t.type IN ('OUTFLOW', 'WRITE_OFF')
-        AND t."createdAt" >= ${dateFrom} AND t."createdAt" <= ${dateTo}
-      GROUP BY DATE(t."createdAt")
-      ORDER BY DATE(t."createdAt") ASC;
-    `,
+    // 4. Динамика расхода за период — через findMany + JS группировка (нет raw SQL)
+    prisma.transaction.findMany({
+      where: {
+        type: { in: ['OUTFLOW', 'WRITE_OFF'] },
+        createdAt: { gte: dateFrom, lte: dateTo },
+      },
+      select: { createdAt: true, quantity: true },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   // Подсчёт по медикаментам
   let totalValue = 0;
   const criticalItems: { name: string; quantity: number; minQuantity: number; isExpiringSoon: boolean }[] = [];
 
-  const futureThreshold = new Date();
-  const thresholdDays = parseInt(process.env.EXPIRY_THRESHOLD_DAYS || '30', 10);
-  futureThreshold.setDate(futureThreshold.getDate() + thresholdDays);
+  // Пороги истечения: 30, 60, 90 дней
+  const threshold30 = new Date();
+  threshold30.setDate(threshold30.getDate() + 30);
+  const threshold60 = new Date();
+  threshold60.setDate(threshold60.getDate() + 60);
+  const threshold90 = new Date();
+  threshold90.setDate(threshold90.getDate() + 90);
+
+  const expiringItems: {
+    name: string;
+    quantity: number;
+    expirationDate: string;
+    daysLeft: number;
+    bucket: '30' | '60' | '90';
+  }[] = [];
 
   for (const med of allBatches) {
     let medStock = 0;
@@ -90,8 +174,27 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
     for (const batch of med.batches) {
       medStock += batch.quantity;
       totalValue += batch.quantity * (batch.price || 0);
-      if (batch.quantity > 0 && batch.expirationDate && batch.expirationDate <= futureThreshold) {
-        isExpiringSoon = true;
+
+      if (batch.quantity > 0 && batch.expirationDate) {
+        const expDate = batch.expirationDate;
+        const daysLeft = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Включаем только будущие (не просроченные)
+        if (daysLeft >= 0 && expDate <= threshold90) {
+          isExpiringSoon = expDate <= threshold30;
+          const bucket = expDate <= threshold30 ? '30' : expDate <= threshold60 ? '60' : '90';
+          expiringItems.push({
+            name: med.name,
+            quantity: batch.quantity,
+            expirationDate: expDate.toISOString(),
+            daysLeft,
+            bucket,
+          });
+        }
+        // Помечаем просроченные тоже (daysLeft < 0) как критические
+        if (daysLeft < 0) {
+          isExpiringSoon = true;
+        }
       }
     }
     if (medStock <= med.minQuantity || isExpiringSoon) {
@@ -103,6 +206,9 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
       });
     }
   }
+
+  // Сортируем: сначала ближе к истечению
+  expiringItems.sort((a, b) => a.daysLeft - b.daysLeft);
 
   // Получаем имена для ТОП-10
   const top10Ids = outflows.map((o) => o.medicationId);
@@ -121,10 +227,15 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
     };
   });
 
-  const consumptionTrend = consumptionTrendRaw.map(row => ({
-    date: row.date.toString(), // handle JS Date formatting if necessary
-    total: row.total,
-  }));
+  // Группируем динамику расхода по датам через JS (без raw SQL)
+  const trendByDate = new Map<string, number>();
+  for (const tx of rawTrendTx) {
+    const dateKey = tx.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD
+    trendByDate.set(dateKey, (trendByDate.get(dateKey) || 0) + tx.quantity);
+  }
+  const consumptionTrend = Array.from(trendByDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, total]) => ({ date, total }));
 
   const result = {
     overview: {
@@ -132,8 +243,10 @@ export const getDashboardMetrics = async (filter?: string, startDate?: string, e
       totalInventoryValue: Math.round(totalValue * 100) / 100,
       totalUniqueMedications: allBatches.length,
       criticalItemsCount: criticalItems.length,
+      expiringItemsCount: expiringItems.filter(e => e.bucket === '30').length,
     },
     criticalItems,
+    expiringItems,
     top10Consumed,
     consumptionTrend,
   };

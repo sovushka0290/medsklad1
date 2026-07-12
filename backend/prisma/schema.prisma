@@ -23,49 +23,53 @@ enum LocationType {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  email             String             @unique
+  id                Int                  @id @default(autoincrement())
+  email             String               @unique
   password          String
-  role              Role               @default(NURSE)
+  role              Role                 @default(NURSE)
   name              String?
-  isActive          Boolean            @default(true) // <-- Added isActive
+  isActive          Boolean              @default(true) // <-- Added isActive
   pushToken         String? // <-- Added pushToken
   transactions      Transaction[]
   procedureLogs     ProcedureLog[]
-  inventorySessions InventorySession[] // <-- Added relation
-  auditLogs         AuditLog[]         // <-- Added relation
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  inventorySessions InventorySession[]   // <-- Added relation
+  auditLogs         AuditLog[]           // <-- Added relation
+  replenishmentRequests  ReplenishmentRequest[] @relation("ReplenishmentRequester")
+  replenishmentResolved  ReplenishmentRequest[] @relation("ReplenishmentResolver")
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 }
 
 model Location {
-  id                Int                @id @default(autoincrement())
+  id                Int                  @id @default(autoincrement())
   name              String
-  type              LocationType       @default(CABINET)
+  type              LocationType         @default(CABINET)
   description       String?
   batches           Batch[]
   transactions      Transaction[]
   procedureLogs     ProcedureLog[]
-  inventorySessions InventorySession[] // <-- Added relation
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  inventorySessions InventorySession[]   // <-- Added relation
+  replenishmentRequests ReplenishmentRequest[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 }
 
 model Medication {
-  id             Int             @id @default(autoincrement())
+  id             Int                    @id @default(autoincrement())
   barcodes       String[]
   name           String
   mnn            String?
   form           String?
   unit           String?
   group          String?
-  minQuantity    Int             @default(10)
+  minQuantity    Int                    @default(10)
   batches        Batch[]
   transactions   Transaction[]
   procedureNorms ProcedureNorm[]
-  inventoryItems InventoryItem[] // <-- Added relation
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  inventoryItems InventoryItem[]        // <-- Added relation
+  replenishmentRequests ReplenishmentRequest[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   @@index([name])
 }
@@ -205,4 +209,35 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@index([action])
+}
+
+enum ReplenishmentStatus {
+  PENDING
+  ACKNOWLEDGED
+  FULFILLED
+  REJECTED
+}
+
+// ТЗ 3.6: Запрос пополнения от медсестры кабинета
+model ReplenishmentRequest {
+  id           Int                  @id @default(autoincrement())
+  medicationId Int
+  medication   Medication           @relation(fields: [medicationId], references: [id])
+  locationId   Int
+  location     Location             @relation(fields: [locationId], references: [id])
+  requestedBy  Int
+  requester    User                 @relation("ReplenishmentRequester", fields: [requestedBy], references: [id])
+  quantity     Int
+  comment      String?
+  status       ReplenishmentStatus  @default(PENDING)
+  resolvedBy   Int?
+  resolver     User?                @relation("ReplenishmentResolver", fields: [resolvedBy], references: [id])
+  resolvedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([status])
+  @@index([requestedBy])
+  @@index([locationId])
+  @@index([createdAt])
 }

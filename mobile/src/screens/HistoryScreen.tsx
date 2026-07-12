@@ -11,7 +11,8 @@ import {
   StatusBar,
   TouchableOpacity,
   Animated,
-  ScrollView
+  ScrollView,
+  TextInput
 } from 'react-native';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,6 +65,7 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'INCOME' | 'OUTFLOW' | 'WRITE_OFF' | 'RETURN'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation<any>();
 
   const handleLogout = () => {
@@ -156,8 +158,10 @@ export default function HistoryScreen() {
   };
 
   const filteredTransactions = transactions.filter(tx => {
-    if (selectedFilter === 'ALL') return true;
-    return tx.type === selectedFilter;
+    const matchesType = selectedFilter === 'ALL' || tx.type === selectedFilter;
+    const matchesSearch = !searchQuery.trim() || 
+      tx.medication.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesType && matchesSearch;
   });
 
   const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
@@ -250,6 +254,25 @@ export default function HistoryScreen() {
             );
           })}
         </ScrollView>
+      </View>
+
+      {/* Search bar */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={18} color="#94A3B8" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Поиск по названию препарата..."
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (
@@ -346,6 +369,33 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#fff',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+
   center: {
     flex: 1,
     justifyContent: 'center',

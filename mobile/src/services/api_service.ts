@@ -17,6 +17,41 @@ const showAlert = (title: string, message: string) => {
   Alert.alert(title, message, [{ text: 'OK', onPress: () => { isAlertShown = false; } }]);
 };
 
+export const formatDetailedError = (error: any): string => {
+  if (!error) return 'Неизвестная ошибка';
+  
+  let msg = '';
+  
+  // Extract main error text
+  if (error.response) {
+    const status = error.response.status;
+    const statusText = error.response.statusText || '';
+    const serverMsg = error.response.data?.error || error.response.data?.message;
+    msg += `[HTTP ${status} ${statusText}]\n`;
+    if (serverMsg) {
+      msg += `Детали: ${serverMsg}\n`;
+    }
+  } else if (error.request) {
+    msg += 'Запрос отправлен, но нет ответа от сервера.\n';
+  } else {
+    msg += `Ошибка инициализации запроса: ${error.message}\n`;
+  }
+  
+  // Extract error code (Axios / network specific)
+  if (error.code) {
+    msg += `Код ошибки: ${error.code}\n`;
+  }
+
+  // Extract endpoint details
+  if (error.config) {
+    const url = error.config.url || '';
+    const method = (error.config.method || '').toUpperCase();
+    msg += `Метод/УРЛ: ${method} ${url}\n`;
+  }
+
+  return msg.trim();
+};
+
 api.interceptors.request.use(async (config) => {
   const token = await SecureStore.getItemAsync('accessToken');
   if (token) {
@@ -36,6 +71,7 @@ api.interceptors.response.use((response) => {
   // Handle request timeouts and connection drops
   if (error.code === 'ECONNABORTED' || !error.response) {
     if (
+      originalRequest &&
       originalRequest.method?.toLowerCase() === 'post' && 
       originalRequest.url?.includes('/transactions') &&
       !originalRequest.headers['X-Sync-Retry']
@@ -55,7 +91,7 @@ api.interceptors.response.use((response) => {
       if (!skipAlerts) {
         showAlert(
           'Отсутствует сеть',
-          'Операция сохранена локально и будет отправлена при появлении интернета.'
+          'Операция сохранена локально и будет отправлена при появлении интернета.\n\n' + formatDetailedError(error)
         );
       }
       
@@ -64,15 +100,16 @@ api.interceptors.response.use((response) => {
     }
 
     if (!skipAlerts) {
+      const detailedMsg = formatDetailedError(error);
       if (error.code === 'ECONNABORTED') {
         showAlert(
           'Превышено время ожидания',
-          'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.'
+          'Сервер загружается после простоя. Пожалуйста, попробуйте еще раз.\n\n' + detailedMsg
         );
       } else {
         showAlert(
-          'Ошибка сети',
-          'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.'
+          'Ошибка сети / соединения',
+          'Не удалось связаться с сервером. Пожалуйста, убедитесь, что вы подключены к интернету.\n\n' + detailedMsg
         );
       }
     }
@@ -106,6 +143,27 @@ api.interceptors.response.use((response) => {
       return Promise.reject(refreshError);
     }
   }
+
+  // Handle 4xx / 5xx HTTP errors with detailed diagnostics
+  if (error.response && !skipAlerts) {
+    const status = error.response.status;
+    const detailedMsg = formatDetailedError(error);
+
+    if (status === 400) {
+      showAlert('Ошибка запроса [400]', `Неверные данные запроса.\n\n${detailedMsg}`);
+    } else if (status === 403) {
+      showAlert('Доступ запрещён [403]', `У вас нет прав для этой операции.\n\n${detailedMsg}`);
+    } else if (status === 404) {
+      showAlert('Не найдено [404]', `Запрошенный ресурс не существует.\n\n${detailedMsg}`);
+    } else if (status === 409) {
+      showAlert('Конфликт данных [409]', `Данные уже существуют или конфликт состояния.\n\n${detailedMsg}`);
+    } else if (status === 422) {
+      showAlert('Ошибка валидации [422]', `Данные не прошли проверку.\n\n${detailedMsg}`);
+    } else if (status >= 500) {
+      showAlert(`Ошибка сервера [${status}]`, `Произошла внутренняя ошибка сервера. Обратитесь к администратору.\n\n${detailedMsg}`);
+    }
+  }
   
   return Promise.reject(error);
 });
+

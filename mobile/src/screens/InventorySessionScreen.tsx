@@ -12,7 +12,8 @@ import {
   SafeAreaView,
   Animated,
   Easing,
-  StatusBar
+  StatusBar,
+  KeyboardAvoidingView
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -297,70 +298,80 @@ export default function InventorySessionScreen({ navigation }: any) {
           </CameraView>
         </View>
       ) : (
-        <View style={styles.inputContainer}>
-          <View style={styles.scannedProductHeader}>
-            <Ionicons name="cube-outline" size={32} color="#0891B2" style={{ marginRight: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.productTitle} numberOfLines={2}>{scannedItemName || 'Товар найден'}</Text>
-              <Text style={styles.productSubtitle}>Штрих-код: {scannedItem}</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView
+            style={styles.inputContainer}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.scannedProductHeader}>
+              <Ionicons name="cube-outline" size={32} color="#0891B2" style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.productTitle} numberOfLines={2}>{scannedItemName || 'Товар найден'}</Text>
+                <Text style={styles.productSubtitle}>Штрих-код: {scannedItem}</Text>
+              </View>
             </View>
-          </View>
-          
-          <Text style={styles.label}>Фактическое количество на складе:</Text>
-
-          {/* Stepper Counter Component */}
-          <View style={styles.stepperContainer}>
-            <TouchableOpacity 
-              style={styles.stepperBtn} 
-              onPress={decreaseQty}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="remove" size={24} color="#0891B2" />
-            </TouchableOpacity>
             
-            <TextInput
-              style={styles.stepperInput}
-              value={actualQuantity}
-              onChangeText={setActualQuantity}
-              keyboardType="number-pad"
-              textAlign="center"
-            />
+            <Text style={styles.label}>Фактическое количество на складе:</Text>
 
-            <TouchableOpacity 
-              style={styles.stepperBtn} 
-              onPress={increaseQty}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add" size={24} color="#0891B2" />
-            </TouchableOpacity>
-          </View>
+            {/* Stepper Counter Component */}
+            <View style={styles.stepperContainer}>
+              <TouchableOpacity 
+                style={styles.stepperBtn} 
+                onPress={decreaseQty}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="remove" size={24} color="#0891B2" />
+              </TouchableOpacity>
+              
+              <TextInput
+                style={styles.stepperInput}
+                value={actualQuantity}
+                onChangeText={setActualQuantity}
+                keyboardType="number-pad"
+                textAlign="center"
+              />
 
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
-              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity 
+                style={styles.stepperBtn} 
+                onPress={increaseQty}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={24} color="#0891B2" />
+              </TouchableOpacity>
             </View>
-          ) : null}
-          
-          <View style={styles.row}>
-            <TouchableOpacity 
-              style={[styles.btnPrimary, { flex: 1, marginRight: 8 }]} 
-              onPress={confirmScan}
-              disabled={processing}
-              activeOpacity={0.8}
-            >
-              {processing ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Внести в опись</Text>}
-            </TouchableOpacity>
+
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={18} color="#EF4444" style={{ marginRight: 6 }} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
             
-            <TouchableOpacity 
-              style={[styles.btnDanger, { flex: 1, marginLeft: 8 }]} 
-              onPress={() => { setScannedItem(null); setScannedItemName(null); setError(''); }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.btnText}>Отмена</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            <View style={styles.row}>
+              <TouchableOpacity 
+                style={[styles.btnPrimary, { flex: 1, marginRight: 8 }]} 
+                onPress={confirmScan}
+                disabled={processing}
+                activeOpacity={0.8}
+              >
+                {processing ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Внести в опись</Text>}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.btnDanger, { flex: 1, marginLeft: 8 }]} 
+                onPress={() => { setScannedItem(null); setScannedItemName(null); setError(''); }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.btnText}>Отмена</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {/* History and complete panel */}

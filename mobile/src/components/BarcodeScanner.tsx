@@ -7,6 +7,14 @@ import * as SecureStore from 'expo-secure-store';
 
 type TransactionType = 'INCOME' | 'OUTFLOW' | 'RETURN' | 'WRITE_OFF';
 
+const GROUPS = [
+  { id: 1, name: 'Анестетики' },
+  { id: 2, name: 'Расходники' },
+  { id: 3, name: 'Медикаменты' },
+  { id: 4, name: 'Композиты' },
+  { id: 5, name: 'Цементы' }
+];
+
 export default function BarcodeScanner() {
   // 1. All hooks defined strictly at the top of the component
   const [permission, requestPermission] = useCameraPermissions();
@@ -21,10 +29,19 @@ export default function BarcodeScanner() {
   const [quantity, setQuantity] = useState('1');
   const [type, setType] = useState<TransactionType>('OUTFLOW');
   const [submitting, setSubmitting] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number>(1);
   
   const cameraRef = useRef<any>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [torch, setTorch] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    manufacturer?: string;
+    dosage?: string;
+    expirationDate?: string;
+    serialNumber?: string;
+    ocrText?: string;
+    confidence?: number;
+  } | null>(null);
 
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
@@ -60,10 +77,11 @@ export default function BarcodeScanner() {
     init();
   }, []);
 
+  const canCreateMedication = ['ADMIN', 'STOREKEEPER'].includes(role);
+
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     setScanned(true);
     setBarcode(data);
-    setModalVisible(true);
     setLoadingMed(true);
     
     try {
@@ -71,13 +89,23 @@ export default function BarcodeScanner() {
       const response = await api.post('/medication/scan', { barcode: data });
       if (response.data.data) {
         setMedication(response.data.data);
+        setModalVisible(true);
       } else {
         setMedication(null);
       }
     } catch (e: any) {
       setMedication(null);
       if (e.response?.status === 404) {
-        Alert.alert("Новый товар", "Штрих-код не найден в базе. Обратитесь к администратору для создания карточки товара.");
+        if (canCreateMedication) {
+          setMedication({ isNew: true, name: '', barcode: data });
+          setModalVisible(true);
+        } else {
+          Alert.alert("Товар не найден", "Данный штрих-код отсутствует в базе. Пожалуйста, обратитесь к кладовщику или администратору.");
+          setTimeout(() => setScanned(false), 2000);
+        }
+      } else {
+        Alert.alert("Ошибка", "Не удалось проверить штрих-код.");
+        setTimeout(() => setScanned(false), 2000);
       }
     } finally {
       setLoadingMed(false);
@@ -126,15 +154,11 @@ export default function BarcodeScanner() {
     }
     setSubmitting(true);
     try {
-      // Find default group
-      const groupsRes = await api.get('/groups');
-      const defaultGroupId = groupsRes.data.data[0]?.id || 1;
-
       await api.post('/medication', {
         name: medication.name,
         barcode: medication.barcode,
         minQuantity: minQty,
-        groupId: defaultGroupId
+        groupId: selectedGroupId
       });
       
       Alert.alert('Успех', 'Товар успешно создан!');
@@ -151,6 +175,7 @@ export default function BarcodeScanner() {
     setQuantity('1');
     setType('OUTFLOW');
     setMedication(null);
+    setSelectedGroupId(1);
     setTimeout(() => setScanned(false), 500); 
   };
 
@@ -186,32 +211,48 @@ export default function BarcodeScanner() {
   const takePhotoAndRecognize = async () => {
     if (!cameraRef.current) return;
     setRecognizing(true);
+    setAiResult(null);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.5 });
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.6 });
       const base64 = `data:image/jpeg;base64,${photo.base64}`;
       
       const response = await api.post('/ai/recognize', { image: base64 });
-      const { text, confidence, medication } = response.data.data;
+      const { text, confidence, medication: foundMed, manufacturer, dosage, expirationDate, serialNumber, ocrText } = response.data.data;
+
+      // Сохраняем OCR-данные с упаковки для отображения
+      const ocrData = { manufacturer, dosage, expirationDate, serialNumber, ocrText, confidence };
+      setAiResult(ocrData);
       
       if (confidence < 80) {
-        Alert.alert(
-          'Низкая уверенность ИИ', 
-          `Распознано: ${text}\nУверенность: ${confidence}%\n\nИИ не уверен в результате. Пожалуйста, введите данные вручную.`,
-          [{ text: 'Понятно', onPress: () => {
-             setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
-             setBarcode('Распознано ИИ (низкая уверенность)');
-             setModalVisible(true);
-          }}]
-        );
-      } else if (medication) {
-        setMedication(medication);
-        setBarcode(medication.barcode || 'Распознано ИИ');
+        if (canCreateMedication) {
+          setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
+          setBarcode('Распознано ИИ');
+          setModalVisible(true);
+          Alert.alert(
+            '⚠️ Низкая уверенность ИИ', 
+            `Распознано: ${text}\nУверенность: ${confidence}%\n\nПожалуйста, проверьте и скорректируйте название.`
+          );
+        } else {
+          Alert.alert(
+            'Низкая уверенность ИИ',
+            `Распознано: ${text}\nУверенность: ${confidence}%\n\nПожалуйста, обратитесь к кладовщику.`
+          );
+        }
+      } else if (foundMed) {
+        setMedication(foundMed);
+        setBarcode(foundMed.barcode || 'Распознано ИИ');
         setModalVisible(true);
       } else {
-        Alert.alert('Распознано:', `${text}\nУверенность: ${confidence}%\nТовар не найден в базе.`);
+        if (canCreateMedication) {
+          setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ' });
+          setBarcode('Распознано ИИ');
+          setModalVisible(true);
+        } else {
+          Alert.alert('Распознано:', `${text}\nУверенность: ${confidence}%\nТовар не найден в базе.`);
+        }
       }
     } catch (e) {
-      Alert.alert('Ошибка', 'Не удалось распознать изображение');
+      Alert.alert('Ошибка', 'Не удалось распознать изображение. Попробуйте ещё раз.');
     } finally {
       setRecognizing(false);
     }
@@ -302,25 +343,88 @@ export default function BarcodeScanner() {
 
             <Text style={styles.barcodeText}>Штрих-код: {barcode}</Text>
 
-            {loadingMed ? (
-              <ActivityIndicator size="small" color="#0891B2" style={styles.loader} />
-            ) : medication ? (
-              <View style={styles.medicationBox}>
-                <Text style={styles.medName}>{medication.name}</Text>
-                <Text style={styles.medInfo}>Мин. остаток: {medication.minQuantity}</Text>
-              </View>
-            ) : (
-              <View style={styles.newMedBox}>
-                <Text style={styles.notFound}>Товар не найден. Создать новый?</Text>
-                <TextInput
-                  style={styles.inputSmall}
-                  placeholder="Название (МНН)"
-                  onChangeText={(val) => setMedication({ ...medication, isNew: true, name: val, barcode })}
-                />
+            {/* OCR-данные с упаковки (только при ИИ-распознавании) */}
+            {aiResult && (aiResult.manufacturer || aiResult.dosage || aiResult.expirationDate || aiResult.serialNumber) && (
+              <View style={styles.aiInfoCard}>
+                <View style={styles.aiInfoHeader}>
+                  <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                  <Text style={styles.aiInfoTitle}>Данные с упаковки (ИИ)</Text>
+                  <View style={styles.aiConfidenceBadge}>
+                    <Text style={styles.aiConfidenceText}>{aiResult.confidence}%</Text>
+                  </View>
+                </View>
+                {aiResult.manufacturer && (
+                  <View style={styles.aiInfoRow}>
+                    <Text style={styles.aiInfoLabel}>Производитель</Text>
+                    <Text style={styles.aiInfoValue}>{aiResult.manufacturer}</Text>
+                  </View>
+                )}
+                {aiResult.dosage && (
+                  <View style={styles.aiInfoRow}>
+                    <Text style={styles.aiInfoLabel}>Дозировка</Text>
+                    <Text style={styles.aiInfoValue}>{aiResult.dosage}</Text>
+                  </View>
+                )}
+                {aiResult.expirationDate && (
+                  <View style={styles.aiInfoRow}>
+                    <Text style={styles.aiInfoLabel}>Срок годности</Text>
+                    <Text style={[styles.aiInfoValue, { color: '#F59E0B' }]}>{aiResult.expirationDate}</Text>
+                  </View>
+                )}
+                {aiResult.serialNumber && (
+                  <View style={styles.aiInfoRow}>
+                    <Text style={styles.aiInfoLabel}>Серия / Лот</Text>
+                    <Text style={styles.aiInfoValue}>{aiResult.serialNumber}</Text>
+                  </View>
+                )}
               </View>
             )}
 
-            {!medication?.isNew && (
+            {loadingMed ? (
+              <ActivityIndicator size="small" color="#0891B2" style={styles.loader} />
+            ) : medication ? (
+              medication.isNew ? (
+                <View style={styles.newMedBox}>
+                  <Text style={styles.notFound}>Товар не найден. Создать новый?</Text>
+                  <TextInput
+                    style={styles.inputSmall}
+                    placeholder="Название (МНН)"
+                    value={medication.name}
+                    onChangeText={(val) => setMedication({ ...medication, name: val })}
+                  />
+                  
+                  <Text style={[styles.label, { marginTop: 12 }]}>Группа товара:</Text>
+                  <View style={styles.groupGrid}>
+                    {GROUPS.map((g) => (
+                      <TouchableOpacity
+                        key={g.id}
+                        style={[
+                          styles.groupBtn,
+                          selectedGroupId === g.id && styles.groupBtnActive
+                        ]}
+                        onPress={() => setSelectedGroupId(g.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.groupBtnText,
+                            selectedGroupId === g.id && styles.groupBtnTextActive
+                          ]}
+                        >
+                          {g.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.medicationBox}>
+                  <Text style={styles.medName}>{medication.name}</Text>
+                  <Text style={styles.medInfo}>Мин. остаток: {medication.minQuantity}</Text>
+                </View>
+              )
+            ) : null}
+
+            {!medication?.isNew && medication && (
               <>
                 <Text style={styles.label}>Тип операции:</Text>
                 <View style={styles.typeSelector}>
@@ -362,26 +466,30 @@ export default function BarcodeScanner() {
               </>
             )}
 
-            <Text style={styles.label}>Количество {medication?.isNew ? '(Мин. остаток)' : ''}:</Text>
-            <TextInput
-              style={styles.input}
-              value={quantity}
-              onChangeText={setQuantity}
-              keyboardType="number-pad"
-              placeholder="1"
-            />
+            {medication && (
+              <>
+                <Text style={styles.label}>Количество {medication?.isNew ? '(Мин. остаток)' : ''}:</Text>
+                <TextInput
+                  style={styles.input}
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="number-pad"
+                  placeholder="1"
+                />
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
-              onPress={medication?.isNew ? submitNewMedication : submitTransaction}
-              disabled={submitting || (!medication && !medication?.isNew)}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>{medication?.isNew ? 'Создать товар' : 'Подтвердить'}</Text>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
+                  onPress={medication?.isNew ? submitNewMedication : submitTransaction}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>{medication?.isNew ? 'Создать товар' : 'Подтвердить'}</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -574,9 +682,62 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
+  aiInfoCard: {
+    backgroundColor: 'rgba(124, 58, 237, 0.05)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.2)',
+    padding: 14,
+    marginBottom: 16,
+  },
+  aiInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 6,
+  },
+  aiInfoTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7C3AED',
+    flex: 1,
+  },
+  aiConfidenceBadge: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  aiConfidenceText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  aiInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(124, 58, 237, 0.08)',
+  },
+  aiInfoLabel: {
+    fontSize: 13,
+    color: '#7C3AED',
+    fontWeight: '600',
+    flex: 1,
+  },
+  aiInfoValue: {
+    fontSize: 13,
+    color: '#1E293B',
+    fontWeight: '700',
+    flex: 2,
+    textAlign: 'right',
+  },
   loader: {
     marginVertical: 24,
   },
+
   medicationBox: {
     backgroundColor: 'rgba(8, 145, 178, 0.04)',
     padding: 16,
@@ -663,6 +824,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     color: '#0F172A',
     marginTop: 8,
+  },
+  groupGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  groupBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  groupBtnActive: {
+    backgroundColor: '#0891B2',
+    borderColor: '#0891B2',
+  },
+  groupBtnText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  groupBtnTextActive: {
+    color: '#fff',
   },
   submitBtn: {
     backgroundColor: '#0A2342',
