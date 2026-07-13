@@ -13,11 +13,12 @@ export interface CreateTransactionInput {
   serialNumber?: string;
   supplier?: string;
   price?: number;
+  allowOverdraft?: boolean;
 }
 
 export const transactionService = {
   async createTransaction(input: CreateTransactionInput) {
-    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, supplier, price } = input;
+    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, supplier, price, allowOverdraft } = input;
 
     if (quantity <= 0) {
       throw new BadRequestError('Количество должно быть больше нуля');
@@ -80,27 +81,60 @@ export const transactionService = {
         if (type === TransactionType.WRITE_OFF && !reason) {
           throw new BadRequestError('Укажите причину списания');
         }
-        if (quantityBefore < quantity) {
+        if (quantityBefore < quantity && !allowOverdraft) {
           throw new BadRequestError(`Недостаточно товара на складе (в наличии: ${quantityBefore})`);
         }
         
         quantityAfter = quantityBefore - quantity;
         let remainingToDeduct = quantity;
 
-        for (const batch of allBatches) {
-          if (remainingToDeduct <= 0) break;
-          const deductAmount = Math.min(batch.quantity, remainingToDeduct);
-          const newBatchQuantity = batch.quantity - deductAmount;
+        const sortedBatches = [...allBatches].sort((a, b) => {
+          if (!a.expirationDate && !b.expirationDate) return 0;
+          if (!a.expirationDate) return 1;
+          if (!b.expirationDate) return -1;
+          return a.expirationDate.getTime() - b.expirationDate.getTime();
+        });
 
-          if (newBatchQuantity === 0) {
-            await tx.batch.delete({ where: { id: batch.id } });
-          } else {
-            await tx.batch.update({
-              where: { id: batch.id },
-              data: { quantity: newBatchQuantity },
-            });
+        if (sortedBatches.length > 0) {
+          for (let i = 0; i < sortedBatches.length; i++) {
+            const batch = sortedBatches[i];
+            const isLast = i === sortedBatches.length - 1;
+
+            if (remainingToDeduct <= 0) break;
+
+            if (isLast && remainingToDeduct > batch.quantity && allowOverdraft) {
+              // Последняя партия уходит в минус
+              await tx.batch.update({
+                where: { id: batch.id },
+                data: { quantity: batch.quantity - remainingToDeduct },
+              });
+              remainingToDeduct = 0;
+            } else {
+              const deductAmount = Math.min(batch.quantity, remainingToDeduct);
+              const newBatchQuantity = batch.quantity - deductAmount;
+
+              if (newBatchQuantity === 0) {
+                await tx.batch.delete({ where: { id: batch.id } });
+              } else {
+                await tx.batch.update({
+                  where: { id: batch.id },
+                  data: { quantity: newBatchQuantity },
+                });
+              }
+              remainingToDeduct -= deductAmount;
+            }
           }
-          remainingToDeduct -= deductAmount;
+        } else if (allowOverdraft) {
+          // Если партий вообще нет, создаем новую партию с отрицательным количеством
+          await tx.batch.create({
+            data: {
+              medicationId,
+              locationId,
+              quantity: -remainingToDeduct,
+              supplier: 'Авто-Овердрафт (Оффлайн)',
+            }
+          });
+          remainingToDeduct = 0;
         }
       } else {
         throw new BadRequestError('Неизвестный тип транзакции');
@@ -147,10 +181,10 @@ export const transactionService = {
               );
             }
 
-            // Email Notification to Managers
-            const managers = admins.filter((u: any) => u.role === 'MANAGER' && u.email);
-            for (const manager of managers) {
-              await emailService.sendCriticalStockAlert(txRecord.medication.name, quantityAfter, minQty, manager.email);
+            // Email Notification to Storekeepers, Head Nurses and Admins
+            const recipients = admins.filter((u: any) => ['STOREKEEPER', 'HEAD_NURSE', 'ADMIN'].includes(u.role) && u.email);
+            for (const recipient of recipients) {
+              await emailService.sendCriticalStockAlert(txRecord.medication.name, quantityAfter, minQty, recipient.email);
             }
 
           } catch (err) {

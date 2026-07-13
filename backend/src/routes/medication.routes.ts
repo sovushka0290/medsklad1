@@ -8,7 +8,7 @@ const router = Router();
 // Все маршруты защищены авторизацией
 router.get('/medications', authMiddleware, medicationController.getMedications);
 router.get('/medications/search', authMiddleware, medicationController.searchMedications);
-router.get('/medications/critical', authMiddleware, roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']), medicationController.getCritical);
+router.get('/medications/critical', authMiddleware, roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']), medicationController.getCritical);
 router.get('/inventory', authMiddleware, medicationController.getInventory);
 // Создание нового медикамента (Ф-17: из экрана сканирования)
 router.post('/medications', authMiddleware, roleGuard(['ADMIN', 'STOREKEEPER']), medicationController.createMedication);

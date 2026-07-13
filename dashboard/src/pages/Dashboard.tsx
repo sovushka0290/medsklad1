@@ -14,6 +14,19 @@ const Dashboard = memo(function Dashboard() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [chartPeriod, setChartPeriod] = useState<'today' | 'week' | 'month'>('week');
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  const [expiringThreshold, setExpiringThreshold] = useState<'30' | '60' | '90' | 'all'>('all');
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        setCurrentUser(JSON.parse(userStr));
+      } catch (e) {
+        console.error('Failed to parse user from localStorage', e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -158,8 +171,8 @@ const Dashboard = memo(function Dashboard() {
         </div>
       </div>
         
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-cyan-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-cyan-500/5 transition-all duration-300 hover:-translate-y-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8">
+        <div className="glass-card rounded-2xl border-l-4 border-l-cyan-500 p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Всего товаров</h3>
             <div className="p-2.5 bg-cyan-50 dark:bg-cyan-900/30 rounded-xl transition-colors duration-300">
@@ -169,17 +182,19 @@ const Dashboard = memo(function Dashboard() {
           <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalItemsInStock || 0}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300 hover:-translate-y-1">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Оценка склада</h3>
-            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl transition-colors duration-300">
-              <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        {currentUser?.role !== 'STOREKEEPER' && (
+          <div className="glass-card rounded-2xl border-l-4 border-l-emerald-500 p-6 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Оценка склада</h3>
+              <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl transition-colors duration-300">
+                <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
+            <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
           </div>
-          <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalInventoryValue?.toLocaleString('ru-RU') || 0} ₸</p>
-        </div>
+        )}
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-purple-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300 hover:-translate-y-1">
+        <div className="glass-card rounded-2xl border-l-4 border-l-purple-500 p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest transition-colors duration-300">Уникальных позиций</h3>
             <div className="p-2.5 bg-purple-50 dark:bg-purple-900/30 rounded-xl transition-colors duration-300">
@@ -189,7 +204,7 @@ const Dashboard = memo(function Dashboard() {
           <p className="text-3xl font-extrabold text-slate-800 dark:text-white transition-colors duration-300">{data?.overview?.totalUniqueMedications || 0}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-300 hover:-translate-y-1">
+        <div className="glass-card rounded-2xl border-l-4 border-l-rose-500 p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-rose-500 dark:text-rose-400 uppercase tracking-widest transition-colors duration-300">В дефиците</h3>
             <div className="p-2.5 bg-rose-100 dark:bg-rose-900/30 rounded-xl transition-colors duration-300">
@@ -199,7 +214,7 @@ const Dashboard = memo(function Dashboard() {
           <p className="text-3xl font-extrabold text-rose-600 dark:text-rose-400 transition-colors duration-300">{data?.overview?.criticalItemsCount || 0}</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border-l-4 border-l-orange-500 border border-slate-100 dark:border-slate-700/50 p-6 flex flex-col justify-between hover:shadow-lg hover:shadow-orange-500/5 transition-all duration-300 hover:-translate-y-1">
+        <div className="glass-card rounded-2xl border-l-4 border-l-orange-500 p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-orange-500 dark:text-orange-400 uppercase tracking-widest transition-colors duration-300">Срок &lt; 30 дней</h3>
             <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 rounded-xl transition-colors duration-300">
@@ -214,7 +229,7 @@ const Dashboard = memo(function Dashboard() {
         {/* Charts Section */}
         <div className="lg:col-span-2 space-y-8">
           
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 transition-colors duration-300">
+          <div className="glass-panel rounded-2xl p-6 transition-colors duration-300">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">Динамика расхода</h2>
               <div className="flex bg-slate-100 dark:bg-slate-700/60 rounded-xl p-1 gap-1">
@@ -261,7 +276,7 @@ const Dashboard = memo(function Dashboard() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 p-6 transition-colors duration-300">
+          <div className="glass-panel rounded-2xl p-6 transition-colors duration-300">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Рейтинг кабинетов (Факт vs Норматив)</h2>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -276,6 +291,28 @@ const Dashboard = memo(function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            {proceduresData.some(p => p.Факт > p.Норматив) && (
+              <div className="mt-6 border-t border-slate-100 dark:border-slate-700/50 pt-4">
+                <h3 className="text-sm font-bold text-rose-600 dark:text-rose-400 mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Выявлен перерасход (превышение нормативов):
+                </h3>
+                <div className="space-y-2">
+                  {proceduresData.filter(p => p.Факт > p.Норматив).map((p, idx) => {
+                    const diff = p.Факт - p.Норматив;
+                    const percent = p.Норматив > 0 ? Math.round((diff / p.Норматив) * 100) : 100;
+                    return (
+                      <div key={idx} className="flex justify-between items-center bg-rose-50/50 dark:bg-rose-950/20 px-4 py-2.5 rounded-xl border border-rose-100/50 dark:border-rose-900/30 text-xs">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{p.name}</span>
+                        <span className="font-bold text-rose-600 dark:text-rose-400">
+                          +{diff} шт. (+{percent}%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           
         </div>
@@ -283,7 +320,7 @@ const Dashboard = memo(function Dashboard() {
         {/* Right Column: TOP-10 / Critical / Expiring */}
         <div className="space-y-6 h-full">
           {/* Top 10 Consumed */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col min-h-[280px] transition-colors duration-300">
+          <div className="glass-panel rounded-2xl p-6 flex flex-col min-h-[280px] transition-colors duration-300">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Топ-10 расходных</h2>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {data?.top10Consumed?.length > 0 ? (
@@ -307,7 +344,7 @@ const Dashboard = memo(function Dashboard() {
           </div>
 
           {/* Critical Items Table */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col min-h-[260px] transition-colors duration-300">
+          <div className="glass-panel rounded-2xl p-6 flex flex-col min-h-[260px] transition-colors duration-300">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">Критичные остатки</h2>
               <span className="bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold px-2.5 py-1 rounded-full">{data?.criticalItems?.length || 0} позиций</span>
@@ -342,46 +379,71 @@ const Dashboard = memo(function Dashboard() {
           </div>
 
           {/* Expiring Items — Ф-04 */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 flex flex-col min-h-[260px] transition-colors duration-300">
-            <div className="flex items-center justify-between mb-4">
+          {/* Expiring Items — Ф-04 */}
+          <div className="glass-panel rounded-2xl p-6 flex flex-col min-h-[260px] transition-colors duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Clock className="w-5 h-5 text-orange-500" />
                 Истекают сроки
               </h2>
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">&lt;30д</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">&lt;60д</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">&lt;90д</span>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/60 p-0.5 rounded-lg">
+                {(['30', '60', '90', 'all'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setExpiringThreshold(t)}
+                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all duration-200 ${
+                      expiringThreshold === t
+                        ? 'bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {t === 'all' ? 'Все' : `<${t}д`}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              {data?.expiringItems?.length > 0 ? (
-                <div className="space-y-2.5">
-                  {data.expiringItems.slice(0, 12).map((item: any, idx: number) => (
-                    <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                      <div className="flex-1 min-w-0 pr-3">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{item.quantity} шт. • {new Date(item.expirationDate).toLocaleDateString('ru-RU')}</p>
+              {(() => {
+                const filteredList = data?.expiringItems?.filter((item: any) => {
+                  if (expiringThreshold === 'all') return true;
+                  if (expiringThreshold === '30') return item.bucket === '30';
+                  if (expiringThreshold === '60') return item.bucket === '30' || item.bucket === '60';
+                  if (expiringThreshold === '90') return true;
+                  return true;
+                }) || [];
+
+                return filteredList.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {filteredList.slice(0, 12).map((item: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <div className="flex-1 min-w-0 pr-3">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{item.quantity} шт. • {new Date(item.expirationDate).toLocaleDateString('ru-RU')}</p>
+                        </div>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                          item.bucket === '30'
+                            ? 'bg-orange-100 text-orange-700'
+                            : item.bucket === '60'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {item.daysLeft}д
+                        </span>
                       </div>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                        item.bucket === '30'
-                          ? 'bg-orange-100 text-orange-700'
-                          : item.bucket === '60'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {item.daysLeft}д
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                  <Clock className="h-10 w-10 mb-2 text-slate-300" />
-                  <p className="text-sm">Нет позиций с истекающим сроком</p>
-                  <p className="text-xs text-slate-400 mt-1">В следующие 90 дней</p>
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                    <Clock className="h-10 w-10 mb-2 text-slate-300" />
+                    <p className="text-sm">Нет подходящих позиций</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {expiringThreshold === 'all'
+                        ? 'В следующие 90 дней'
+                        : `В следующие ${expiringThreshold} дней`}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

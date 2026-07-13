@@ -83,6 +83,7 @@ export default memo(function InventoryPage() {
   const [search, setSearch] = useState('');
   const [groupFilter, setGroupFilter] = useState('');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
   const [expanded, setExpanded] = useState<number | null>(null);
 
   // Inventory Session states
@@ -112,6 +113,18 @@ export default memo(function InventoryPage() {
   const [txForm, setTxForm] = useState({ quantity: 1, locationId: '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '' });
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState('');
+  const [currentUser, setCurrentUser] = useState<{ id: number; email: string; role: string; name: string | null } | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        setCurrentUser(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to parse user data from localStorage', e);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -164,13 +177,26 @@ export default memo(function InventoryPage() {
       const totalStock = med.batches.reduce((s, b) => s + b.quantity, 0);
       if (showCriticalOnly && totalStock > med.minQuantity) return false;
       if (groupFilter && med.group !== groupFilter) return false;
+
+      // Status filter
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'in_stock' && totalStock <= med.minQuantity) return false;
+        if (statusFilter === 'low_stock' && (totalStock === 0 || totalStock > med.minQuantity)) return false;
+        if (statusFilter === 'out_of_stock' && totalStock > 0) return false;
+      }
+
       if (search) {
         const q = search.toLowerCase();
-        return med.name.toLowerCase().includes(q) || med.barcodes.some(b => b.includes(q)) || med.mnn?.toLowerCase().includes(q);
+        const matchesMed = med.name.toLowerCase().includes(q) || 
+                           med.barcodes.some(b => b.includes(q)) || 
+                           med.mnn?.toLowerCase().includes(q);
+        const matchesSupplier = med.batches.some(b => b.supplier?.toLowerCase().includes(q));
+        const matchesExpiration = med.batches.some(b => b.expirationDate && new Date(b.expirationDate).toLocaleDateString('ru-RU').includes(q));
+        return matchesMed || matchesSupplier || matchesExpiration;
       }
       return true;
     });
-  }, [meds, showCriticalOnly, groupFilter, search]);
+  }, [meds, showCriticalOnly, groupFilter, statusFilter, search]);
 
   const openTx = useCallback((med: Medication, type: TransactionType) => {
     setTxForm({ quantity: 1, locationId: locations[0]?.id?.toString() || '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '' });
@@ -316,17 +342,19 @@ export default memo(function InventoryPage() {
               <h1 className="text-2xl font-bold text-slate-800">Склад</h1>
               <p className="text-slate-500 text-sm mt-1">Остатки, партии, операции с медикаментами</p>
             </div>
-            <button
-              onClick={() => setShowNewMed(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Новый медикамент
-            </button>
+            {currentUser && ['ADMIN', 'STOREKEEPER'].includes(currentUser.role) && (
+              <button
+                onClick={() => setShowNewMed(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Новый медикамент
+              </button>
+            )}
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-6 flex flex-wrap gap-3 items-center">
+          <div className="glass-panel rounded-2xl p-4 mb-6 flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -346,6 +374,20 @@ export default memo(function InventoryPage() {
               >
                 <option value="">Все группы</option>
                 {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Статус:</span>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as any)}
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                <option value="all">Все статусы</option>
+                <option value="in_stock">В наличии</option>
+                <option value="low_stock">Мало (дефицит)</option>
+                <option value="out_of_stock">Нет на складе</option>
               </select>
             </div>
 
@@ -385,7 +427,7 @@ export default memo(function InventoryPage() {
                 const isOpen = expanded === med.id;
 
                 return (
-                  <div key={med.id} className={`bg-white rounded-2xl shadow-sm border transition-all ${isCritical ? 'border-rose-200' : 'border-slate-100'}`}>
+                  <div key={med.id} className={`glass-card rounded-2xl border transition-all ${isCritical ? 'border-rose-200' : 'border-slate-100/50'}`}>
                     {/* Row header */}
                     <div
                       className="flex items-center px-6 py-4 cursor-pointer hover:bg-slate-50 rounded-2xl transition-colors"
@@ -416,21 +458,23 @@ export default memo(function InventoryPage() {
                         </div>
 
                         {/* Quick action buttons */}
-                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                          {(['INCOME', 'OUTFLOW', 'RETURN', 'WRITE_OFF'] as TransactionType[]).map(type => {
-                            const { icon: Icon, color } = TX_LABELS[type];
-                            return (
-                              <button
-                                key={type}
-                                onClick={() => openTx(med, type)}
-                                title={TX_LABELS[type].label}
-                                className={`p-2 rounded-lg text-${color}-600 bg-${color}-50 hover:bg-${color}-100 transition-colors`}
-                              >
-                                <Icon className="w-4 h-4" />
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {currentUser && currentUser.role !== 'MANAGER' && (
+                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                            {(['INCOME', 'OUTFLOW', 'RETURN', 'WRITE_OFF'] as TransactionType[]).map(type => {
+                              const { icon: Icon, color } = TX_LABELS[type];
+                              return (
+                                <button
+                                  key={type}
+                                  onClick={() => openTx(med, type)}
+                                  title={TX_LABELS[type].label}
+                                  className={`p-2 rounded-lg text-${color}-600 bg-${color}-50 hover:bg-${color}-100 transition-colors`}
+                                >
+                                  <Icon className="w-4 h-4" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
 
                         {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                       </div>
@@ -480,13 +524,15 @@ export default memo(function InventoryPage() {
               <h1 className="text-2xl font-bold text-slate-800">Инвентаризация</h1>
               <p className="text-slate-500 text-sm mt-1">Создание и ведение проверок остатков по кабинетам</p>
             </div>
-            <button
-              onClick={() => setShowStartSession(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
-            >
-              <Play className="w-4 h-4" />
-              Начать проверку (сессию)
-            </button>
+            {currentUser && ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(currentUser.role) && (
+              <button
+                onClick={() => setShowStartSession(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl shadow-sm hover:bg-cyan-700 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Начать проверку (сессию)
+              </button>
+            )}
           </div>
 
           {sessionLoading ? (
@@ -520,20 +566,24 @@ export default memo(function InventoryPage() {
                               <p className="text-xs text-slate-400 mt-1">Открыл: {session.user.name || 'Сотрудник'} | Дата: {new Date(session.createdAt).toLocaleString('ru-RU')}</p>
                             </div>
                             <div className="flex items-center gap-4 mt-4 sm:mt-0" onClick={e => e.stopPropagation()}>
-                              <button
-                                onClick={() => openAdjust(session.id)}
-                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                              >
-                                <Barcode className="w-3.5 h-3.5" />
-                                Корректировка
-                              </button>
-                              <button
-                                onClick={() => handleCloseSession(session.id)}
-                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                              >
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                Завершить
-                              </button>
+                              {currentUser && ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(currentUser.role) && (
+                                <>
+                                  <button
+                                    onClick={() => openAdjust(session.id)}
+                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                                  >
+                                    <Barcode className="w-3.5 h-3.5" />
+                                    Корректировка
+                                  </button>
+                                  <button
+                                    onClick={() => handleCloseSession(session.id)}
+                                    className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    Завершить
+                                  </button>
+                                </>
+                              )}
                               {isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                             </div>
                           </div>

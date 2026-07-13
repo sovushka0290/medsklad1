@@ -15,11 +15,11 @@ interface UserRecord {
 }
 
 const ROLE_LABELS: Record<Role, { label: string; color: string; bg: string }> = {
-  ADMIN:       { label: 'Администратор', color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200' },
-  HEAD_NURSE:  { label: 'Ст. медсестра', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200' },
-  STOREKEEPER: { label: 'Кладовщик',     color: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200' },
-  NURSE:       { label: 'Медсестра',     color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-  MANAGER:     { label: 'Менеджер',      color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200' },
+  ADMIN:       { label: 'Администратор системы', color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200' },
+  HEAD_NURSE:  { label: 'Главная медсестра',     color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200' },
+  STOREKEEPER: { label: 'Кладовщик',             color: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200' },
+  NURSE:       { label: 'Медсестра кабинета',    color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+  MANAGER:     { label: 'Руководитель',          color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200' },
 };
 
 const ALL_ROLES: Role[] = ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE', 'MANAGER'];

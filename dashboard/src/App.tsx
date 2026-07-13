@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -32,6 +32,38 @@ const FallbackLoader = () => (
 );
 
 function App() {
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    let lastActive = Date.now();
+
+    const updateActivity = () => {
+      lastActive = Date.now();
+    };
+
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('click', updateActivity);
+    window.addEventListener('scroll', updateActivity);
+
+    const interval = setInterval(() => {
+      if (Date.now() - lastActive > 30 * 60 * 1000) { // 30 минут
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }, 10000); // Проверка каждые 10 секунд
+
+    return () => {
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('scroll', updateActivity);
+      clearInterval(interval);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <Router>

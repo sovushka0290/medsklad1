@@ -284,12 +284,13 @@ export default function ProceduresScreen() {
         )}
       />
 
-      <Modal visible={modalVisible} transparent animationType="none">
+      <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent>
         <TouchableWithoutFeedback onPress={closeModal}>
           <Animated.View style={[styles.modalOverlay, { opacity: backdropAnim }]}>
             <TouchableWithoutFeedback>
               <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                keyboardVerticalOffset={Platform.OS === 'android' ? 20 : 0}
                 style={{ width: '100%' }}
               >
                 <Animated.View style={[
@@ -538,7 +539,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28, 
     borderTopRightRadius: 28, 
     padding: 24, 
-    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 32,
+    maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.1,

@@ -64,6 +64,11 @@ export default function InventoryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    SecureStore.getItemAsync('userRole').then(role => setUserRole(role));
+  }, []);
 
   const handleLogout = () => {
     Alert.alert(
@@ -215,14 +220,16 @@ export default function InventoryScreen({ navigation }: any) {
             </View>
             <Text style={styles.subtitle}>Остатки медикаментов</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.invButton}
-            onPress={() => navigation.navigate('InventorySession')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="barcode-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-            <Text style={styles.invButtonText}>Инвентарь</Text>
-          </TouchableOpacity>
+          {userRole !== 'MANAGER' && (
+            <TouchableOpacity 
+              style={styles.invButton}
+              onPress={() => navigation.navigate('InventorySession')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="barcode-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.invButtonText}>Инвентарь</Text>
+            </TouchableOpacity>
+          )}
         </View>
         
         {/* Modern search bar container in header */}

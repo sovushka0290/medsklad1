@@ -225,17 +225,46 @@ export default function BarcodeScanner() {
       
       if (confidence < 80) {
         if (canCreateMedication) {
-          setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
-          setBarcode('Распознано ИИ');
-          setModalVisible(true);
           Alert.alert(
-            '⚠️ Низкая уверенность ИИ', 
-            `Распознано: ${text}\nУверенность: ${confidence}%\n\nПожалуйста, проверьте и скорректируйте название.`
+            '⚠️ Низкая уверенность ИИ',
+            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"`,
+            [
+              {
+                text: 'Сфотографировать повторно',
+                style: 'cancel',
+                onPress: () => {
+                  setAiResult(null);
+                  setScanned(false);
+                }
+              },
+              {
+                text: 'Ввести вручную',
+                onPress: () => {
+                  setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
+                  setBarcode('Распознано ИИ');
+                  setModalVisible(true);
+                }
+              }
+            ]
           );
         } else {
           Alert.alert(
-            'Низкая уверенность ИИ',
-            `Распознано: ${text}\nУверенность: ${confidence}%\n\nПожалуйста, обратитесь к кладовщику.`
+            '⚠️ Низкая уверенность ИИ',
+            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"\n\nПожалуйста, переснимите фото или обратитесь к кладовщику.`,
+            [
+              {
+                text: 'Сфотографировать повторно',
+                style: 'default',
+                onPress: () => {
+                  setAiResult(null);
+                  setScanned(false);
+                }
+              },
+              {
+                text: 'ОК',
+                style: 'cancel'
+              }
+            ]
           );
         }
       } else if (foundMed) {

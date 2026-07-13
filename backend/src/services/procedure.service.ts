@@ -92,8 +92,15 @@ export const logProcedure = async (data: {
 
     // Списываем медикаменты со склада согласно нормам
     for (const norm of procedure.norms) {
-      // Ищем партии списанием по FEFO из предзагруженного списка
-      const batches = allBatches.filter((b) => b.medicationId === norm.medicationId);
+      // Ищем партии списанием по FEFO из предзагруженного списка (nulls last)
+      const batches = allBatches
+        .filter((b) => b.medicationId === norm.medicationId)
+        .sort((a, b) => {
+          if (!a.expirationDate && !b.expirationDate) return 0;
+          if (!a.expirationDate) return 1;
+          if (!b.expirationDate) return -1;
+          return a.expirationDate.getTime() - b.expirationDate.getTime();
+        });
 
       let remainingToDeduct = norm.expectedQuantity * quantity;
       let currentTotalStock = batches.reduce((sum, b) => sum + b.quantity, 0);

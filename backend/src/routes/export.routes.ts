@@ -10,56 +10,56 @@ const router = Router();
 router.get(
   '/transactions',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.exportTransactions)
 );
 
 router.get(
   '/inventory',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.exportInventory)
 );
 
 router.get(
   '/1c',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE']), // 1C export usually for upper management
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'MANAGER']), // 1C export usually for upper management
   asyncHandler(exportController.export1C)
 );
 
 router.get(
   '/cabinets',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'MANAGER']),
   asyncHandler(exportController.exportCabinets)
 );
 
 router.get(
   '/inventory-act',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.exportInventoryAct)
 );
 
 router.get(
   '/excel',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.excelExport)
 );
 
 router.get(
   '/csv',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.csvExport)
 );
 
 router.get(
   '/pdf',
   authMiddleware,
-  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER']),
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.pdfExport)
 );
 

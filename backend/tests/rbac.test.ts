@@ -58,6 +58,7 @@ describe('RBAC Role Guard Integration Tests', () => {
   const adminToken = jwt.sign({ id: 1, email: 'admin@medsklad.kz', role: 'ADMIN', name: 'Admin' }, config.jwtSecret);
   const nurseToken = jwt.sign({ id: 2, email: 'nurse@medsklad.kz', role: 'NURSE', name: 'Nurse' }, config.jwtSecret);
   const storekeeperToken = jwt.sign({ id: 3, email: 'store@medsklad.kz', role: 'STOREKEEPER', name: 'Store' }, config.jwtSecret);
+  const managerToken = jwt.sign({ id: 4, email: 'manager@medsklad.kz', role: 'MANAGER', name: 'Manager' }, config.jwtSecret);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -109,6 +110,14 @@ describe('RBAC Role Guard Integration Tests', () => {
       .get('/api/users/audit-logs')
       .set('Authorization', `Bearer ${storekeeperToken}`);
     expect(resStore.status).toBe(403);
+  });
+
+  test('GET /api/users/audit-logs - allowed for MANAGER', async () => {
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 4, role: 'MANAGER' });
+    const resManager = await request(app)
+      .get('/api/users/audit-logs')
+      .set('Authorization', `Bearer ${managerToken}`);
+    expect(resManager.status).not.toBe(403);
   });
 });
 

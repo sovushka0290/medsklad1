@@ -5,7 +5,7 @@ import { requireAuth, roleGuard } from '../middleware/auth.middleware';
 const router = Router();
 
 router.put('/me/push-token', requireAuth, updatePushToken);
-router.get('/audit-logs', requireAuth, roleGuard(['ADMIN', 'HEAD_NURSE']), getAuditLogs);
+router.get('/audit-logs', requireAuth, roleGuard(['ADMIN', 'HEAD_NURSE', 'MANAGER']), getAuditLogs);
 
 // ADMIN-only User Management
 router.get('/', requireAuth, roleGuard(['ADMIN']), getUsers);
