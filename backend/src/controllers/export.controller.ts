@@ -94,12 +94,32 @@ export const exportController = {
     }
   },
 
+  async exportWriteOffAct(req: Request, res: Response, next: NextFunction) {
+    try {
+      const format = req.query.format as string || 'xlsx';
+      if (format === 'pdf') {
+        res.setHeader('Content-Disposition', 'attachment; filename="write_off_act.pdf"');
+        res.setHeader('Content-Type', 'application/pdf');
+        const doc = await exportService.generatePdfDoc('write-off-act', req.query);
+        doc.pipe(res);
+      } else {
+        const workbook = await exportService.generateExcelWorkbook('write-off-act', req.query);
+        res.setHeader('Content-Disposition', 'attachment; filename="write_off_act.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        await workbook.xlsx.write(res);
+        res.end();
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // Новые роуты: /export/excel, /export/csv, /export/pdf с параметром ?type=...
   async excelExport(req: Request, res: Response, next: NextFunction) {
     try {
       const type = (req.query.type as string) || 'inventory';
       // 🔐 SECURITY: Валидация типа экспорта
-      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act'];
+      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act', 'write-off-act', 'procedure-journal'];
       if (!ALLOWED.includes(type)) {
         return res.status(400).json({ success: false, error: `Недопустимый тип экспорта: ${type}` });
       }
@@ -117,7 +137,7 @@ export const exportController = {
     try {
       const type = (req.query.type as string) || 'inventory';
       // 🔐 SECURITY: Валидация типа экспорта
-      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act'];
+      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act', 'write-off-act', 'procedure-journal'];
       if (!ALLOWED.includes(type)) {
         return res.status(400).json({ success: false, error: `Недопустимый тип экспорта: ${type}` });
       }
@@ -135,7 +155,7 @@ export const exportController = {
     try {
       const type = (req.query.type as string) || 'inventory';
       // 🔐 SECURITY: Валидация типа экспорта
-      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act'];
+      const ALLOWED = ['transactions', 'inventory', 'cabinets', 'inventory-act', 'write-off-act', 'procedure-journal'];
       if (!ALLOWED.includes(type)) {
         return res.status(400).json({ success: false, error: `Недопустимый тип экспорта: ${type}` });
       }
@@ -143,6 +163,26 @@ export const exportController = {
       res.setHeader('Content-Type', 'application/pdf');
       const doc = await exportService.generatePdfDoc(type, req.query);
       doc.pipe(res);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async exportProcedureJournal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const format = req.query.format as string || 'xlsx';
+      if (format === 'pdf') {
+        res.setHeader('Content-Disposition', 'attachment; filename="procedure_journal.pdf"');
+        res.setHeader('Content-Type', 'application/pdf');
+        const doc = await exportService.generatePdfDoc('procedure-journal', req.query);
+        doc.pipe(res);
+      } else {
+        const workbook = await exportService.generateExcelWorkbook('procedure-journal', req.query);
+        res.setHeader('Content-Disposition', 'attachment; filename="procedure_journal.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        await workbook.xlsx.write(res);
+        res.end();
+      }
     } catch (error) {
       next(error);
     }

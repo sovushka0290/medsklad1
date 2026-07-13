@@ -21,6 +21,8 @@ import aiRoutes from './routes/ai.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import userRoutes from './routes/user.routes';
 import replenishmentRoutes from './routes/replenishment.routes';
+import notificationRoutes from './routes/notification.routes';
+import { checkAndCreateNotifications } from './services/notification.service';
 import { errorHandler } from './middleware/error.middleware';
 import { auditMiddleware } from './middleware/audit.middleware';
 
@@ -71,6 +73,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/replenishment', replenishmentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check — без раскрытия версии
 app.get('/api/health', (req: Request, res: Response) => {
@@ -91,10 +94,23 @@ const server = app.listen(config.port, () => {
   logger.info(`[MedSklad] Сервер запущен на порту ${config.port}`);
 });
 
-server.timeout = 30000; // 30 секунд таймаут (АРХ-5)
+server.timeout = 30000; // 30 секунд таймаут
+
+// Ф-30: Периодическая проверка уведомлений каждые 15 минут
+// Первый запуск через 30 сек после старта (чтобы не нагружать запуск)
+const NOTIFICATION_INTERVAL_MS = 15 * 60 * 1000;
+let notificationTimer: NodeJS.Timeout;
+setTimeout(() => {
+  checkAndCreateNotifications().catch(console.error);
+  notificationTimer = setInterval(() => {
+    checkAndCreateNotifications().catch(console.error);
+  }, NOTIFICATION_INTERVAL_MS);
+  logger.info('[MedSklad] Планировщик уведомлений запущен (интервал 15 мин)');
+}, 30_000);
 
 const shutdown = async (signal: string) => {
   logger.info(`[MedSklad] Получен ${signal}, завершение работы...`);
+  clearInterval(notificationTimer);
   server.close(async () => {
     await prisma.$disconnect();
     logger.info('[MedSklad] БД отключена, сервер остановлен.');

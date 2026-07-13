@@ -46,7 +46,8 @@ export const medicationService = {
       where: {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
-          { barcodes: { has: query } }, // Simple exact match for any barcode in the array
+          { mnn: { contains: query, mode: 'insensitive' } },
+          { barcodes: { has: query } },
         ],
       },
       include: {

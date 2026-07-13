@@ -1,12 +1,18 @@
 import { Router } from 'express';
-import { createProcedure, logProcedure, getProcedureComparison, getAllProcedures } from '../services/procedure.service';
+import {
+  createProcedure,
+  logProcedure,
+  getProcedureComparison,
+  getAllProcedures,
+  getLogsJournal,
+} from '../services/procedure.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { roleGuard } from '../middleware/role.middleware';
 import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-// Кладовщик создает процедуры и нормативы (СЕР-8: убран inline try-catch)
+// ─── Ф-19: Создать шаблон процедуры со стандартом ───────────────────────────
 router.post(
   '/',
   authMiddleware,
@@ -27,11 +33,11 @@ router.get(
   })
 );
 
-// Медсестра логирует выполнение процедуры
+// ─── Ф-20: Медсестра/медбрат вносит процедуру за смену ──────────────────────
 router.post(
   '/log',
   authMiddleware,
-  roleGuard(['ADMIN', 'NURSE', 'HEAD_NURSE']),
+  roleGuard(['ADMIN', 'NURSE', 'HEAD_NURSE', 'STOREKEEPER']),
   asyncHandler(async (req, res) => {
     const userId = req.user!.id;
     const log = await logProcedure({ ...req.body, userId });
@@ -39,25 +45,52 @@ router.post(
   })
 );
 
-// Руководитель или Главная медсестра — сравнение Факт/Норма
-// Primary route
+// ─── Ф-21, Ф-22: Сравнение Факт vs Норматив с фильтром по дате ──────────────
 router.get(
   '/comparison',
   authMiddleware,
   roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(async (req, res) => {
-    const comparison = await getProcedureComparison();
+    const { from, to } = req.query as { from?: string; to?: string };
+    const comparison = await getProcedureComparison({ from, to });
     res.json({ success: true, data: comparison });
   })
 );
-// Backward‑compatible alias
+
+// Backward-compatible alias
 router.get(
   '/compare',
   authMiddleware,
   roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(async (req, res) => {
-    const comparison = await getProcedureComparison();
+    const { from, to } = req.query as { from?: string; to?: string };
+    const comparison = await getProcedureComparison({ from, to });
     res.json({ success: true, data: comparison });
+  })
+);
+
+// ─── Ф-23, Ф-24: Журнал расхода — клиника→кабинет→сотрудник→МО ─────────────
+router.get(
+  '/logs',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER', 'NURSE']),
+  asyncHandler(async (req, res) => {
+    const {
+      locationId, procedureId, userId,
+      from, to, page, limit,
+    } = req.query as Record<string, string>;
+
+    const result = await getLogsJournal({
+      locationId: locationId ? Number(locationId) : undefined,
+      procedureId: procedureId ? Number(procedureId) : undefined,
+      userId: userId ? Number(userId) : undefined,
+      from,
+      to,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+
+    res.json({ success: true, ...result });
   })
 );
 

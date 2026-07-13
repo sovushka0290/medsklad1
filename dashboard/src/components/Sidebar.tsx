@@ -2,7 +2,7 @@ import { memo, useCallback, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileUp, LogOut, Package,
-  FileSpreadsheet, Activity, Users
+  FileSpreadsheet, Activity, Users, Bell
 } from 'lucide-react';
 
 interface User {
@@ -34,12 +34,13 @@ const Sidebar = memo(function Sidebar() {
   }, [navigate]);
 
   const allItems = [
-    { name: 'Обзор', path: '/', icon: LayoutDashboard, roles: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER'] },
+    { name: 'Обзор', path: '/', icon: LayoutDashboard, roles: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER', 'NURSE'] },
     { name: 'Склад', path: '/inventory', icon: Package, roles: ['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'NURSE', 'MANAGER'] },
     { name: 'Расход по кабинетам', path: '/procedures', icon: Activity, roles: ['ADMIN', 'HEAD_NURSE', 'NURSE', 'MANAGER', 'STOREKEEPER'] },
     { name: 'Отчёты и логи', path: '/reports', icon: FileSpreadsheet, roles: ['ADMIN', 'HEAD_NURSE', 'MANAGER', 'STOREKEEPER'] },
     { name: 'Импорт из 1С/Excel', path: '/import', icon: FileUp, roles: ['ADMIN', 'STOREKEEPER'] },
     { name: 'Пользователи', path: '/users', icon: Users, roles: ['ADMIN'] },
+    { name: 'Настройки уведомлений', path: '/settings/notifications', icon: Bell, roles: ['ADMIN', 'HEAD_NURSE', 'MANAGER'] },
   ];
 
   // Filter items based on user role

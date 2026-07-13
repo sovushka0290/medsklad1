@@ -43,6 +43,13 @@ router.get(
 );
 
 router.get(
+  '/write-off-act',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
+  asyncHandler(exportController.exportWriteOffAct)
+);
+
+router.get(
   '/excel',
   authMiddleware,
   roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
@@ -61,6 +68,13 @@ router.get(
   authMiddleware,
   roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER']),
   asyncHandler(exportController.pdfExport)
+);
+
+router.get(
+  '/procedure-journal',
+  authMiddleware,
+  roleGuard(['ADMIN', 'HEAD_NURSE', 'STOREKEEPER', 'MANAGER', 'NURSE']),
+  asyncHandler(exportController.exportProcedureJournal)
 );
 
 export default router;

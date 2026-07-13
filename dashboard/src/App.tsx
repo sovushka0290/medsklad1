@@ -12,6 +12,7 @@ const Procedures = lazy(() => import('./pages/Procedures'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Import = lazy(() => import('./pages/Import'));
 const UsersPage = lazy(() => import('./pages/Users'));
+const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
@@ -76,6 +77,7 @@ function App() {
             <Route path="/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
             <Route path="/import" element={<PrivateRoute><Import /></PrivateRoute>} />
             <Route path="/users" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
+            <Route path="/settings/notifications" element={<PrivateRoute><NotificationSettings /></PrivateRoute>} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Suspense>

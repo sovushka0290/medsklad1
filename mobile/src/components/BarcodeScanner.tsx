@@ -31,6 +31,31 @@ export default function BarcodeScanner() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<number>(1);
   
+  // Расширенные поля для операций
+  const [batchNumber, setBatchNumber] = useState('');
+  const [serialNumber, setSerialNumberField] = useState('');
+  const [purposeField, setPurposeField] = useState('');
+  const [receiverField, setReceiverField] = useState('');
+  const [reasonField, setReasonField] = useState('');
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const handleSearchMedication = async (q: string) => {
+    if (q.trim().length < 2) return;
+    setSearchLoading(true);
+    try {
+      const res = await api.get(`/medications/search?q=${encodeURIComponent(q)}`);
+      setSearchResults(res.data || []);
+    } catch (e) {
+      console.log(e);
+      Alert.alert('Ошибка', 'Не удалось выполнить поиск препаратов');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+  
   const cameraRef = useRef<any>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [torch, setTorch] = useState(false);
@@ -123,24 +148,50 @@ export default function BarcodeScanner() {
       Alert.alert('Ошибка', 'Введите корректное количество');
       return;
     }
+    
+    if ((type === 'WRITE_OFF' || type === 'RETURN') && !reasonField.trim()) {
+      Alert.alert('Ошибка', 'Для списания/возврата необходимо указать причину.');
+      return;
+    }
 
     setSubmitting(true);
     try {
       const locResponse = await api.get('/locations');
       const defaultLocId = locResponse.data[0]?.id || 1;
 
-      await api.post('/transactions', {
+      const payload: any = {
         type,
         quantity: qty,
         medicationId: medication.id,
         locationId: defaultLocId,
-        reason: type === 'WRITE_OFF' ? 'Списание через мобильное приложение' : undefined
-      });
+        // Поля для оффлайн-синхронизации (идентификация в логах)
+        medicationName: medication.name,
+        // Разрешаем выдачу при оффлайне (серверная проверка при синхронизации)
+        allowOverdraft: type === 'OUTFLOW',
+      };
+
+      // Необязательные поля партии и операции
+      if (batchNumber.trim()) payload.batchNumber = batchNumber.trim();
+      if (serialNumber.trim()) payload.serialNumber = serialNumber.trim();
+      if (purposeField.trim()) payload.purpose = purposeField.trim();
+      if (receiverField.trim()) payload.receiver = receiverField.trim();
+      if (reasonField.trim()) payload.reason = reasonField.trim();
+      else if (type === 'WRITE_OFF') payload.reason = 'Списание через мобильное приложение';
+
+      const result = await api.post('/transactions', payload);
       
-      Alert.alert('Успех', 'Операция успешно проведена!');
+      // Check if operation was saved offline
+      if (result.data?.offline) {
+        Alert.alert(
+          '📱 Сохранено оффлайн',
+          'Нет подключения к сети. Операция сохранена локально и будет отправлена при восстановлении соединения.'
+        );
+      } else {
+        Alert.alert('✅ Успех', 'Операция успешно проведена!');
+      }
       closeModal();
     } catch (e: any) {
-      Alert.alert('Ошибка', e.response?.data?.message || 'Не удалось провести операцию');
+      Alert.alert('Ошибка', e.response?.data?.message || e.response?.data?.error || 'Не удалось провести операцию');
     } finally {
       setSubmitting(false);
     }
@@ -176,6 +227,13 @@ export default function BarcodeScanner() {
     setType('OUTFLOW');
     setMedication(null);
     setSelectedGroupId(1);
+    setSearchQuery('');
+    setSearchResults([]);
+    setBatchNumber('');
+    setSerialNumberField('');
+    setPurposeField('');
+    setReceiverField('');
+    setReasonField('');
     setTimeout(() => setScanned(false), 500); 
   };
 
@@ -250,19 +308,25 @@ export default function BarcodeScanner() {
         } else {
           Alert.alert(
             '⚠️ Низкая уверенность ИИ',
-            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"\n\nПожалуйста, переснимите фото или обратитесь к кладовщику.`,
+            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"`,
             [
               {
                 text: 'Сфотографировать повторно',
-                style: 'default',
+                style: 'cancel',
                 onPress: () => {
                   setAiResult(null);
                   setScanned(false);
                 }
               },
               {
-                text: 'ОК',
-                style: 'cancel'
+                text: 'Искать вручную',
+                onPress: () => {
+                  setMedication(null);
+                  setSearchQuery(text);
+                  handleSearchMedication(text);
+                  setBarcode('Распознано ИИ');
+                  setModalVisible(true);
+                }
               }
             ]
           );
@@ -277,7 +341,12 @@ export default function BarcodeScanner() {
           setBarcode('Распознано ИИ');
           setModalVisible(true);
         } else {
-          Alert.alert('Распознано:', `${text}\nУверенность: ${confidence}%\nТовар не найден в базе.`);
+          // Автоматический переход к поиску препарата
+          setMedication(null);
+          setSearchQuery(text);
+          handleSearchMedication(text);
+          setBarcode('Распознано ИИ');
+          setModalVisible(true);
         }
       }
     } catch (e) {
@@ -451,7 +520,49 @@ export default function BarcodeScanner() {
                   <Text style={styles.medInfo}>Мин. остаток: {medication.minQuantity}</Text>
                 </View>
               )
-            ) : null}
+            ) : (
+              <View style={styles.searchContainer}>
+                <Text style={styles.notFound}>Препарат не найден в базе данных.</Text>
+                <Text style={styles.searchLabel}>Поиск препарата вручную:</Text>
+                <View style={styles.searchRow}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Введите название или МНН..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                  <TouchableOpacity
+                    style={styles.searchBtn}
+                    onPress={() => handleSearchMedication(searchQuery)}
+                  >
+                    <Ionicons name="search" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                {searchLoading ? (
+                  <ActivityIndicator size="small" color="#0891B2" style={{ marginVertical: 10 }} />
+                ) : (
+                  <View style={styles.searchResultsList}>
+                    {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
+                      <Text style={styles.noResultsText}>Ничего не найдено</Text>
+                    )}
+                    {searchResults.map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={styles.searchResultItem}
+                        onPress={() => {
+                          setMedication(item);
+                          setBarcode(item.barcodes[0] || 'Распознано ИИ');
+                        }}
+                      >
+                        <Text style={styles.searchResultName}>{item.name}</Text>
+                        {item.mnn && <Text style={styles.searchResultMnn}>МНН: {item.mnn}</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
 
             {!medication?.isNew && medication && (
               <>
@@ -506,6 +617,51 @@ export default function BarcodeScanner() {
                   placeholder="1"
                 />
 
+                {/* Необязательные поля партии */}
+                {!medication?.isNew && (
+                  <>
+                    <Text style={[styles.label, { marginTop: 8, color: '#64748b', fontSize: 12 }]}>
+                      Данные партии (необязательно):
+                    </Text>
+                    <TextInput
+                      style={[styles.input, styles.inputSmall]}
+                      value={batchNumber}
+                      onChangeText={setBatchNumber}
+                      placeholder="Номер партии / лот"
+                    />
+                    <TextInput
+                      style={[styles.input, styles.inputSmall]}
+                      value={serialNumber}
+                      onChangeText={setSerialNumberField}
+                      placeholder="Серийный номер"
+                    />
+                    {type === 'OUTFLOW' && (
+                      <>
+                        <TextInput
+                          style={[styles.input, styles.inputSmall]}
+                          value={purposeField}
+                          onChangeText={setPurposeField}
+                          placeholder="Цель выдачи (процедура, кабинет...)"
+                        />
+                        <TextInput
+                          style={[styles.input, styles.inputSmall]}
+                          value={receiverField}
+                          onChangeText={setReceiverField}
+                          placeholder="Получатель (ФИО / кабинет)"
+                        />
+                      </>
+                    )}
+                    {(type === 'WRITE_OFF' || type === 'RETURN') && (
+                      <TextInput
+                        style={[styles.input, styles.inputSmall, { borderColor: reasonField.trim() ? '#10b981' : '#ef4444', borderWidth: 1.5 }]}
+                        value={reasonField}
+                        onChangeText={setReasonField}
+                        placeholder={`Причина ${type === 'WRITE_OFF' ? 'списания' : 'возврата'} *`}
+                      />
+                    )}
+                  </>
+                )}
+
                 <TouchableOpacity 
                   style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
                   onPress={medication?.isNew ? submitNewMedication : submitTransaction}
@@ -527,6 +683,73 @@ export default function BarcodeScanner() {
 }
 
 const styles = StyleSheet.create({
+  searchContainer: {
+    width: '100%',
+    marginVertical: 10,
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  searchLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
+  searchBtn: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#0891B2',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchResultsList: {
+    maxHeight: 150,
+    width: '100%',
+  },
+  searchResultItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    marginVertical: 2,
+  },
+  searchResultName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  searchResultMnn: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  noResultsText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
   container: {
     flex: 1,
     backgroundColor: '#000',

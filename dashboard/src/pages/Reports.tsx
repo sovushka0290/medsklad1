@@ -3,7 +3,7 @@ import { api } from '../api';
 import {
   ArrowDown, ArrowUp, RotateCcw, Trash2,
   Calendar, Download, ShieldCheck, History, AlertCircle,
-  Package, DollarSign, Activity, AlertOctagon
+  Package, DollarSign, Activity, AlertOctagon, FileText
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 
@@ -14,6 +14,14 @@ interface Transaction {
   reason: string | null;
   quantityBefore: number;
   quantityAfter: number;
+  batchNumber: string | null;
+  serialNumber: string | null;
+  expirationDate: string | null;
+  price: number | null;
+  supplier: string | null;
+  purpose: string | null;
+  receiver: string | null;
+  targetLocationId: number | null;
   createdAt: string;
   medication: { name: string; unit: string | null };
   location: { name: string };
@@ -42,6 +50,7 @@ export default memo(function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'transactions' | 'audit'>('transactions');
   const [exporting, setExporting] = useState(false);
+  const [locations, setLocations] = useState<any[]>([]);
 
   // Date filter state
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'custom'>('week');
@@ -109,6 +118,12 @@ export default memo(function ReportsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     checkUserRole();
+    try {
+      const locRes = await api.get('/locations');
+      setLocations(locRes.data || []);
+    } catch (e) {
+      console.error('Failed to load locations in reports', e);
+    }
     await Promise.all([
       fetchTransactions(txPage),
       fetchMetrics()
@@ -123,10 +138,11 @@ export default memo(function ReportsPage() {
     loadData();
   }, [txPage, auditPage, dateFilter, startDate, endDate]);
 
-  const handleExport = useCallback(async (type: string, format: string) => {
+  const handleExport = useCallback(async (type: string, format: string, extraParams: Record<string, any> = {}) => {
     setExporting(true);
     try {
-      const res = await api.get(`/export/${type}?format=${format}`, { responseType: 'blob' });
+      const query = new URLSearchParams({ format, ...extraParams }).toString();
+      const res = await api.get(`/export/${type}?${query}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -323,17 +339,21 @@ export default memo(function ReportsPage() {
                   <th className="px-6 py-4">Исполнитель</th>
                   <th className="px-6 py-4">Дата</th>
                   <th className="px-6 py-4">Примечание</th>
+                  <th className="px-6 py-4">Акт</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                 {txHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-10 text-slate-400">История пуста</td>
+                    <td colSpan={8} className="text-center py-10 text-slate-400">История пуста</td>
                   </tr>
                 ) : (
                   txHistory.map(tx => {
                     const labelInfo = TX_LABELS[tx.type] || { label: tx.type, color: 'text-slate-700 bg-slate-50 border-slate-200', icon: History };
                     const Icon = labelInfo.icon;
+                    const targetLocName = tx.targetLocationId 
+                      ? locations.find(l => l.id === tx.targetLocationId)?.name || ''
+                      : '';
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/55 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -342,7 +362,28 @@ export default memo(function ReportsPage() {
                             {labelInfo.label}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-medium text-slate-900">{tx.medication?.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-900">{tx.medication?.name}</div>
+                          {tx.batchNumber || tx.serialNumber ? (
+                            <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                              {tx.batchNumber && <span>Парт: {tx.batchNumber}</span>}
+                              {tx.serialNumber && <span className="ml-2">Сер.№: {tx.serialNumber}</span>}
+                            </div>
+                          ) : null}
+                          {tx.supplier || tx.price ? (
+                            <div className="text-[11px] text-slate-400 font-medium">
+                              {tx.supplier && <span>Пост: {tx.supplier}</span>}
+                              {tx.price && <span className="ml-2">Цена: {tx.price} ₸</span>}
+                            </div>
+                          ) : null}
+                          {tx.purpose || tx.receiver || targetLocName ? (
+                            <div className="text-[11px] text-cyan-600 font-medium mt-0.5">
+                              {tx.purpose && <span>Цель: {tx.purpose}</span>}
+                              {tx.receiver && <span className="ml-2">Получатель: {tx.receiver}</span>}
+                              {targetLocName && <span className="ml-2">{"→"} {targetLocName}</span>}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap font-bold">
                           {tx.type === 'INCOME' || tx.type === 'RETURN' ? '+' : '-'}{tx.quantity} {tx.medication?.unit || 'шт.'}
                         </td>
@@ -355,6 +396,17 @@ export default memo(function ReportsPage() {
                         </td>
                         <td className="px-6 py-4 text-xs text-slate-500 max-w-xs truncate" title={tx.reason || ''}>
                           {tx.reason || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {tx.type === 'WRITE_OFF' ? (
+                            <button
+                              onClick={() => handleExport('write-off-act', 'pdf', { transactionId: tx.id })}
+                              title="Скачать Акт списания (PDF)"
+                              className="p-1 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded transition-colors"
+                            >
+                              <FileText className="w-4.5 h-4.5" />
+                            </button>
+                          ) : '-'}
                         </td>
                       </tr>
                     );

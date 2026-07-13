@@ -3,7 +3,7 @@ import { api } from '../api';
 import {
   Package, Search, Plus, ArrowDown, ArrowUp, RotateCcw, Trash2,
   AlertTriangle, ChevronDown, ChevronUp, X, Loader2, Filter,
-  ClipboardList, Play, CheckCircle, RefreshCw, Barcode
+  ClipboardList, Play, CheckCircle, RefreshCw, Barcode, Download
 } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 
@@ -16,6 +16,8 @@ interface Batch {
   supplier: string | null;
   expirationDate: string | null;
   location: { id: number; name: string };
+  batchNumber?: string | null;
+  serialNumber?: string | null;
 }
 
 interface Medication {
@@ -75,6 +77,46 @@ const ExpiryBadge = memo(function ExpiryBadge({ date }: { date: string | null })
   return null;
 });
 
+const getFefoPreview = (med: Medication | null, quantity: number) => {
+  if (!med || !med.batches || quantity <= 0) return [];
+  
+  // Копируем и сортируем партии по FEFO
+  const sortedBatches = [...med.batches].sort((a, b) => {
+    if (!a.expirationDate && !b.expirationDate) return 0;
+    if (!a.expirationDate) return 1;
+    if (!b.expirationDate) return -1;
+    return new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime();
+  });
+
+  let remaining = quantity;
+  const preview = [];
+
+  for (const b of sortedBatches) {
+    if (remaining <= 0) break;
+    const deduct = Math.min(b.quantity, remaining);
+    preview.push({
+      batchId: b.id,
+      batchNumber: b.batchNumber || `Партия #${b.id}`,
+      serialNumber: b.serialNumber || '',
+      expirationDate: b.expirationDate,
+      quantity: deduct,
+    });
+    remaining -= deduct;
+  }
+
+  if (remaining > 0) {
+    preview.push({
+      batchId: -1,
+      batchNumber: 'Овердрафт (минусовой остаток)',
+      serialNumber: '',
+      expirationDate: null,
+      quantity: remaining,
+    });
+  }
+
+  return preview;
+};
+
 export default memo(function InventoryPage() {
   const [activeTab, setActiveTab] = useState<'stock' | 'sessions'>('stock');
   const [meds, setMeds] = useState<Medication[]>([]);
@@ -110,7 +152,7 @@ export default memo(function InventoryPage() {
 
   // Transaction modal
   const [txModal, setTxModal] = useState<{ open: boolean; med: Medication | null; type: TransactionType }>({ open: false, med: null, type: 'INCOME' });
-  const [txForm, setTxForm] = useState({ quantity: 1, locationId: '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '' });
+  const [txForm, setTxForm] = useState({ quantity: 1, locationId: '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '', batchNumber: '', purpose: '', receiver: '', targetLocationId: '' });
   const [txLoading, setTxLoading] = useState(false);
   const [txError, setTxError] = useState('');
   const [currentUser, setCurrentUser] = useState<{ id: number; email: string; role: string; name: string | null } | null>(null);
@@ -199,7 +241,19 @@ export default memo(function InventoryPage() {
   }, [meds, showCriticalOnly, groupFilter, statusFilter, search]);
 
   const openTx = useCallback((med: Medication, type: TransactionType) => {
-    setTxForm({ quantity: 1, locationId: locations[0]?.id?.toString() || '', price: '', supplier: '', expirationDate: '', serialNumber: '', reason: '' });
+    setTxForm({ 
+      quantity: 1, 
+      locationId: locations[0]?.id?.toString() || '', 
+      price: '', 
+      supplier: '', 
+      expirationDate: '', 
+      serialNumber: '', 
+      reason: '',
+      batchNumber: '',
+      purpose: '',
+      receiver: '',
+      targetLocationId: ''
+    });
     setTxError('');
     setTxModal({ open: true, med, type });
   }, [locations]);
@@ -207,6 +261,8 @@ export default memo(function InventoryPage() {
   const submitTx = useCallback(async () => {
     if (!txModal.med) return;
     if (!txForm.locationId) { setTxError('Выберите локацию'); return; }
+    if (txModal.type === 'RETURN' && !txForm.reason.trim()) { setTxError('Причина возврата обязательна'); return; }
+    if (txModal.type === 'WRITE_OFF' && !txForm.reason.trim()) { setTxError('Причина списания обязательна'); return; }
     setTxLoading(true);
     setTxError('');
     try {
@@ -219,7 +275,11 @@ export default memo(function InventoryPage() {
         supplier: txForm.supplier || undefined,
         expirationDate: txForm.expirationDate || undefined,
         serialNumber: txForm.serialNumber || undefined,
+        batchNumber: txForm.batchNumber || undefined,
         reason: txForm.reason || undefined,
+        purpose: txForm.purpose || undefined,
+        receiver: txForm.receiver || undefined,
+        targetLocationId: txForm.targetLocationId ? Number(txForm.targetLocationId) : undefined,
       });
       setTxModal({ open: false, med: null, type: 'INCOME' });
       await fetchData();
@@ -305,6 +365,27 @@ export default memo(function InventoryPage() {
       setAdjustLoading(false);
     }
   }, [adjustForm, fetchSessions]);
+
+  // Экспорт Акта расхождений для завершённой инвентаризации
+  const [exportingAct, setExportingAct] = useState<number | null>(null);
+  const handleExportInventoryAct = useCallback(async (sessionId: number, format: 'pdf' | 'xlsx') => {
+    setExportingAct(sessionId);
+    try {
+      const res = await api.get(`/export/inventory-act?format=${format}&sessionId=${sessionId}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Акт_расхождений_сессия_${sessionId}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка при оформлении Акта расхождений');
+    } finally {
+      setExportingAct(null);
+    }
+  }, []);
 
   return (
     <>
@@ -489,10 +570,22 @@ export default memo(function InventoryPage() {
                         ) : (
                           <div className="space-y-2">
                             {med.batches.map(b => (
-                              <div key={b.id} className="flex items-center justify-between text-sm bg-slate-50 rounded-xl px-4 py-2">
-                                <div className="flex items-center gap-3">
-                                  <span className="font-medium text-slate-700">{b.location.name}</span>
-                                  {b.supplier && <span className="text-slate-400">{b.supplier}</span>}
+                              <div key={b.id} className="flex items-center justify-between text-sm bg-slate-50/70 rounded-xl px-4 py-2.5 border border-slate-100 hover:bg-slate-50 transition-colors">
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-slate-700">{b.location.name}</span>
+                                    {b.batchNumber && (
+                                      <span className="bg-cyan-50 text-cyan-700 text-xs px-2 py-0.5 rounded-md font-medium">
+                                        Парт: {b.batchNumber}
+                                      </span>
+                                    )}
+                                    {b.serialNumber && (
+                                      <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-md font-medium">
+                                        Сер. №: {b.serialNumber}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {b.supplier && <span className="text-xs text-slate-400">Поставщик: {b.supplier}</span>}
                                 </div>
                                 <div className="flex items-center gap-4">
                                   {b.expirationDate && (
@@ -644,7 +737,7 @@ export default memo(function InventoryPage() {
                 ) : (
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-100">
                     {historySessions.map(session => (
-                      <div key={session.id} className="p-5 flex justify-between items-center hover:bg-slate-50/30">
+                      <div key={session.id} className="p-5 flex justify-between items-start hover:bg-slate-50/30">
                         <div>
                           <h4 className="font-semibold text-slate-800">{session.location.name}</h4>
                           <p className="text-xs text-slate-400 mt-1">
@@ -652,7 +745,35 @@ export default memo(function InventoryPage() {
                             Товаров проверено: {session.items?.length || 0}
                           </p>
                         </div>
-                        <span className="px-2.5 py-1 text-xs font-bold text-slate-500 bg-slate-100 rounded-full uppercase">Завершена</span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 text-xs font-bold text-slate-500 bg-slate-100 rounded-full uppercase">Завершена</span>
+                          <button
+                            onClick={() => handleExportInventoryAct(session.id, 'pdf')}
+                            disabled={exportingAct === session.id}
+                            title="Скачать Акт расхождений (PDF)"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                          >
+                            {exportingAct === session.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Download className="w-3 h-3" />
+                            )}
+                            PDF
+                          </button>
+                          <button
+                            onClick={() => handleExportInventoryAct(session.id, 'xlsx')}
+                            disabled={exportingAct === session.id}
+                            title="Скачать Акт расхождений (Excel)"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                          >
+                            {exportingAct === session.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Download className="w-3 h-3" />
+                            )}
+                            Excel
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -806,19 +927,91 @@ export default memo(function InventoryPage() {
                         placeholder="ООО Фарма..." className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Срок годности</label>
-                      <input type="date" value={txForm.expirationDate} onChange={e => setTxForm(f => ({ ...f, expirationDate: e.target.value }))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Партия №</label>
+                      <input type="text" value={txForm.batchNumber} onChange={e => setTxForm(f => ({ ...f, batchNumber: e.target.value }))}
+                        placeholder="П-01" className="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Серийный №</label>
                       <input type="text" value={txForm.serialNumber} onChange={e => setTxForm(f => ({ ...f, serialNumber: e.target.value }))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                        placeholder="S/N" className="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Срок годности</label>
+                      <input type="date" value={txForm.expirationDate} onChange={e => setTxForm(f => ({ ...f, expirationDate: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                     </div>
                   </div>
                 </>
+              )}
+
+              {txModal.type === 'OUTFLOW' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 font-semibold text-xs">Кабинет-получатель *</label>
+                      <select
+                        value={txForm.targetLocationId}
+                        onChange={e => setTxForm(f => ({ ...f, targetLocationId: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      >
+                        <option value="">Выберите...</option>
+                        {locations.filter(l => l.type === 'CABINET').map(l => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 text-xs">Получатель (ФИО)</label>
+                      <input type="text" value={txForm.receiver} onChange={e => setTxForm(f => ({ ...f, receiver: e.target.value }))}
+                        placeholder="Иванов И.И." className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1 text-xs">Цель выдачи</label>
+                    <select
+                      value={txForm.purpose}
+                      onChange={e => setTxForm(f => ({ ...f, purpose: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="">Выберите цель...</option>
+                      <option value="Процедура">На проведение процедуры</option>
+                      <option value="Пополнение кабинета">Пополнение запасов кабинета</option>
+                      <option value="Экстренно">Экстренная помощь</option>
+                      <option value="Другое">Другое</option>
+                    </select>
+                  </div>
+
+                  {/* FEFO Deductions Preview */}
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-1.5">
+                    <span className="font-bold text-slate-500 uppercase tracking-wider block text-[10px]">Расчет списания по FEFO (первый истекающий срок):</span>
+                    {(() => {
+                      const preview = getFefoPreview(txModal.med, Number(txForm.quantity));
+                      if (preview.length === 0) return <p className="text-slate-400">Введите количество</p>;
+                      return preview.map((p, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-white border border-slate-100 rounded-lg p-2">
+                          <span className="font-semibold text-slate-700">
+                            {p.batchNumber} {p.expirationDate ? `(до ${new Date(p.expirationDate).toLocaleDateString('ru-RU')})` : ''}
+                          </span>
+                          <span className="font-bold text-slate-800">
+                            -{p.quantity} {txModal.med?.unit || 'шт.'}
+                          </span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </>
+              )}
+
+              {txModal.type === 'RETURN' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Причина возврата *</label>
+                  <textarea rows={3} value={txForm.reason} onChange={e => setTxForm(f => ({ ...f, reason: e.target.value }))}
+                    placeholder="Невостребован пациентом, отмена назначения..."
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none" />
+                </div>
               )}
 
               {txModal.type === 'WRITE_OFF' && (

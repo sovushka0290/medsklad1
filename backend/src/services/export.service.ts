@@ -3,7 +3,7 @@ import * as ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
-import { getProcedureComparison } from './procedure.service';
+import { getProcedureComparison, getLogsJournal } from './procedure.service';
 
 // Пути к кириллическим шрифтам (локально сгруппированным)
 const REGULAR_FONT_PATH = path.join(__dirname, '..', '..', 'assets', 'fonts', 'Roboto-Regular.ttf');
@@ -52,22 +52,37 @@ export const exportService = {
         { header: 'Тип', key: 'type', width: 15 },
         { header: 'Препарат', key: 'medication', width: 30 },
         { header: 'Штрихкоды', key: 'barcodes', width: 20 },
-        { header: 'Локация', key: 'location', width: 20 },
+        { header: 'Локация (Откуда/Где)', key: 'location', width: 20 },
         { header: 'Кол-во', key: 'qty', width: 10 },
         { header: 'Остаток после', key: 'qtyAfter', width: 15 },
         { header: 'Сотрудник', key: 'user', width: 20 },
+        { header: 'Номер партии', key: 'batchNumber', width: 15 },
+        { header: 'Серийный №', key: 'serialNumber', width: 15 },
+        { header: 'Срок годности', key: 'expDate', width: 15 },
+        { header: 'Цена', key: 'price', width: 12 },
+        { header: 'Поставщик', key: 'supplier', width: 20 },
+        { header: 'Цель выдачи', key: 'purpose', width: 20 },
+        { header: 'Получатель', key: 'receiver', width: 20 },
+        { header: 'Кабинет-получатель', key: 'targetCabinet', width: 20 },
+        { header: 'Причина', key: 'reason', width: 25 },
       ];
 
-      const transactions = await prisma.transaction.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          medication: { select: { name: true, barcodes: true } },
-          location: { select: { name: true } },
-          user: { select: { name: true } },
-        },
-      });
+      const [transactions, locations] = await Promise.all([
+        prisma.transaction.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: {
+            medication: { select: { name: true, barcodes: true } },
+            location: { select: { name: true } },
+            user: { select: { name: true } },
+          },
+        }),
+        prisma.location.findMany(),
+      ]);
 
       transactions.forEach(tx => {
+        const targetCabinet = tx.targetLocationId 
+          ? locations.find(l => l.id === tx.targetLocationId)?.name || '' 
+          : '';
         sheet.addRow({
           date: tx.createdAt.toLocaleString('ru-RU'),
           type: tx.type,
@@ -77,9 +92,52 @@ export const exportService = {
           qty: tx.quantity,
           qtyAfter: tx.quantityAfter,
           user: tx.user?.name || '',
+          batchNumber: tx.batchNumber || '',
+          serialNumber: tx.serialNumber || '',
+          expDate: tx.expirationDate ? tx.expirationDate.toISOString().split('T')[0] : '',
+          price: tx.price || '',
+          supplier: tx.supplier || '',
+          purpose: tx.purpose || '',
+          receiver: tx.receiver || '',
+          targetCabinet,
+          reason: tx.reason || '',
         });
       });
-    } 
+    }
+    
+    else if (type === 'write-off-act') {
+      const sheet = workbook.addWorksheet('Акт списания');
+      sheet.columns = [
+        { header: 'Параметр', key: 'param', width: 25 },
+        { header: 'Значение', key: 'value', width: 45 },
+      ];
+
+      const transactionId = queryParams.transactionId ? Number(queryParams.transactionId) : null;
+      let transaction;
+      if (transactionId) {
+        transaction = await prisma.transaction.findUnique({
+          where: { id: transactionId },
+          include: { medication: true, location: true, user: true },
+        });
+      } else {
+        transaction = await prisma.transaction.findFirst({
+          where: { type: 'WRITE_OFF' },
+          orderBy: { createdAt: 'desc' },
+          include: { medication: true, location: true, user: true },
+        });
+      }
+
+      if (transaction) {
+        sheet.addRow({ param: 'Акт №', value: transaction.id });
+        sheet.addRow({ param: 'Дата составления', value: transaction.createdAt.toLocaleString('ru-RU') });
+        sheet.addRow({ param: 'Локация списания', value: transaction.location.name });
+        sheet.addRow({ param: 'Ответственное лицо', value: transaction.user?.name || '' });
+        sheet.addRow({ param: 'Препарат', value: transaction.medication.name });
+        sheet.addRow({ param: 'МНН', value: transaction.medication.mnn || '' });
+        sheet.addRow({ param: 'Количество', value: `${transaction.quantity} ${transaction.medication.unit || 'шт.'}` });
+        sheet.addRow({ param: 'Причина списания', value: transaction.reason || '' });
+      }
+    }
     
     else if (type === 'inventory') {
       const sheet = workbook.addWorksheet('Остатки');
@@ -170,6 +228,53 @@ export const exportService = {
       }
     }
 
+    // Ф-23: Журнал расхода по процедурам (кабинет, сотрудник, процедура)
+    else if (type === 'procedure-journal') {
+      const sheet = workbook.addWorksheet('Журнал процедур');
+      sheet.columns = [
+        { header: 'Дата', key: 'date', width: 20 },
+        { header: 'Кабинет', key: 'location', width: 25 },
+        { header: 'Сотрудник', key: 'user', width: 25 },
+        { header: 'Должность', key: 'role', width: 15 },
+        { header: 'Процедура', key: 'procedure', width: 30 },
+        { header: 'Стандарт', key: 'standard', width: 20 },
+        { header: 'Кол-во манипул.', key: 'quantity', width: 15 },
+        { header: 'Примечание', key: 'note', width: 30 },
+      ];
+
+      // Apply header style
+      sheet.getRow(1).eachCell(cell => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+      });
+
+      const result = await getLogsJournal({
+        locationId: queryParams.locationId ? Number(queryParams.locationId) : undefined,
+        procedureId: queryParams.procedureId ? Number(queryParams.procedureId) : undefined,
+        from: queryParams.from,
+        to: queryParams.to,
+        limit: 5000,
+        page: 1,
+      });
+
+      result.data.forEach(log => {
+        const row = sheet.addRow({
+          date: new Date(log.createdAt).toLocaleString('ru-RU'),
+          location: log.location.name,
+          user: log.user.name || '-',
+          role: log.user.role,
+          procedure: log.procedure.name,
+          standard: log.procedure.standard || '-',
+          quantity: log.quantity,
+          note: log.note || '',
+        });
+        // Highlight row background on note
+        if (log.note) {
+          row.getCell('note').font = { italic: true, color: { argb: 'FF64748B' } };
+        }
+      });
+    }
+
     return workbook;
   },
 
@@ -183,23 +288,99 @@ export const exportService = {
       doc.fontSize(16).text('Журнал операций склада', { align: 'center' });
       doc.moveDown();
 
-      const transactions = await prisma.transaction.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          medication: { select: { name: true, unit: true } },
-          location: { select: { name: true } },
-          user: { select: { name: true } },
-        },
-      });
+      const [transactions, locations] = await Promise.all([
+        prisma.transaction.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: {
+            medication: { select: { name: true, unit: true } },
+            location: { select: { name: true } },
+            user: { select: { name: true } },
+          },
+        }),
+        prisma.location.findMany(),
+      ]);
 
       setPdfFont(doc, false);
       transactions.forEach((tx, idx) => {
+        const targetCabinet = tx.targetLocationId 
+          ? locations.find(l => l.id === tx.targetLocationId)?.name || '' 
+          : '';
         doc.fontSize(10).text(`${idx + 1}. ${tx.createdAt.toLocaleString('ru-RU')} — [${tx.type}] — ${tx.medication.name}`);
-        doc.text(`   Количество: ${tx.quantity} ${tx.medication.unit || 'шт.'}, Остаток после: ${tx.quantityAfter}, Локация: ${tx.location.name}`);
-        doc.text(`   Исполнитель: ${tx.user?.name || '-'}, Причина: ${tx.reason || '-'}`);
+        
+        let details = `   Кол-во: ${tx.quantity} ${tx.medication.unit || 'шт.'}, Остаток: ${tx.quantityAfter}, Локация: ${tx.location.name}`;
+        if (tx.batchNumber) details += `, Парт: ${tx.batchNumber}`;
+        if (tx.serialNumber) details += `, Сер.№: ${tx.serialNumber}`;
+        if (tx.price) details += `, Цена: ${tx.price}₸`;
+        if (tx.supplier) details += `, Пост: ${tx.supplier}`;
+        doc.text(details);
+
+        if (tx.purpose || tx.receiver || targetCabinet) {
+          let dest = `   Цель: ${tx.purpose || '-'}`;
+          if (tx.receiver) dest += `, Получатель: ${tx.receiver}`;
+          if (targetCabinet) dest += `, Кабинет: ${targetCabinet}`;
+          doc.text(dest);
+        }
+
+        doc.text(`   Исполнитель: ${tx.user?.name || '-'}, Причина/Комментарий: ${tx.reason || '-'}`);
         doc.moveDown(0.5);
       });
     } 
+    
+    else if (type === 'write-off-act') {
+      setPdfFont(doc, true);
+      doc.fontSize(16).text('Акт списания медикаментов', { align: 'center' });
+      doc.moveDown();
+
+      const transactionId = queryParams.transactionId ? Number(queryParams.transactionId) : null;
+      let transaction;
+      if (transactionId) {
+        transaction = await prisma.transaction.findUnique({
+          where: { id: transactionId },
+          include: { medication: true, location: true, user: true },
+        });
+      } else {
+        transaction = await prisma.transaction.findFirst({
+          where: { type: 'WRITE_OFF' },
+          orderBy: { createdAt: 'desc' },
+          include: { medication: true, location: true, user: true },
+        });
+      }
+
+      setPdfFont(doc, false);
+      if (transaction) {
+        doc.fontSize(11).text(`Акт № ${transaction.id}`);
+        doc.text(`Дата составления: ${transaction.createdAt.toLocaleString('ru-RU')}`);
+        doc.text(`Локация списания: ${transaction.location.name}`);
+        doc.text(`Ответственное лицо: ${transaction.user?.name || 'Не указано'}`);
+        doc.moveDown();
+
+        setPdfFont(doc, true);
+        doc.text('Сведения о списываемых ценностях:', { underline: true });
+        doc.moveDown(0.5);
+        setPdfFont(doc, false);
+
+        doc.fontSize(10).text(`1. Препарат: ${transaction.medication.name}`);
+        if (transaction.medication.mnn) {
+          doc.text(`   МНН: ${transaction.medication.mnn}`);
+        }
+        if (transaction.batchNumber) {
+          doc.text(`   Номер партии: ${transaction.batchNumber}`);
+        }
+        if (transaction.serialNumber) {
+          doc.text(`   Серийный номер: ${transaction.serialNumber}`);
+        }
+        doc.text(`   Количество к списанию: ${transaction.quantity} ${transaction.medication.unit || 'шт.'}`);
+        doc.text(`   Причина списания: ${transaction.reason || 'Причина не указана'}`);
+        
+        doc.moveDown(2);
+        doc.text('Списание произведено в присутствии комиссии:');
+        doc.moveDown();
+        doc.text('Член комиссии: ________________________ (подпись)');
+        doc.text('Член комиссии: ________________________ (подпись)');
+      } else {
+        doc.text('Операции списания не найдены.');
+      }
+    }
     
     else if (type === 'inventory') {
       setPdfFont(doc, true);
@@ -292,6 +473,40 @@ export const exportService = {
         doc.text('Подписи членов комиссии: ________________________');
       } else {
         doc.text('Сессии инвентаризации не найдены.');
+      }
+    }
+    
+    else if (type === 'procedure-journal') {
+      setPdfFont(doc, true);
+      doc.fontSize(16).text('Журнал использования медикаментов по процедурам', { align: 'center' });
+      doc.moveDown();
+
+      const result = await getLogsJournal({
+        locationId: queryParams.locationId ? Number(queryParams.locationId) : undefined,
+        procedureId: queryParams.procedureId ? Number(queryParams.procedureId) : undefined,
+        from: queryParams.from,
+        to: queryParams.to,
+        limit: 5000,
+        page: 1,
+      });
+
+      setPdfFont(doc, false);
+      doc.fontSize(10);
+      result.data.forEach((log, idx) => {
+        setPdfFont(doc, true);
+        doc.text(`${idx + 1}. Дата: ${new Date(log.createdAt).toLocaleString('ru-RU')}`);
+        setPdfFont(doc, false);
+        doc.text(`   Кабинет: ${log.location.name}`);
+        doc.text(`   Процедура: ${log.procedure.name} ${log.procedure.standard ? `(${log.procedure.standard})` : ''}`);
+        doc.text(`   Количество выполненных манипуляций: ${log.quantity}`);
+        doc.text(`   Исполнитель: ${log.user.name} (${log.user.role})`);
+        if (log.note) {
+          doc.text(`   Примечание: ${log.note}`);
+        }
+        doc.moveDown(0.5);
+      });
+      if (result.data.length === 0) {
+        doc.text('Записей о проведении процедур за выбранный период не найдено.');
       }
     }
 

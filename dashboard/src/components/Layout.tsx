@@ -2,6 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import { Moon, Sun } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const Layout = memo(function Layout({ children }: { children: ReactNode }) {
   const [isDark, setIsDark] = useState(() => {
@@ -26,13 +27,17 @@ const Layout = memo(function Layout({ children }: { children: ReactNode }) {
         {/* Sticky glassmorphic Header */}
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/50 dark:border-slate-800/50 h-16 flex items-center justify-between px-8 shadow-sm sticky top-0 z-40 transition-colors duration-300">
            <h2 className="text-slate-600 dark:text-slate-300 font-semibold tracking-wide text-sm sm:text-base">Система управления складом</h2>
-           <button 
-             onClick={() => setIsDark(!isDark)}
-             className="p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
-             aria-label="Toggle theme"
-           >
-             {isDark ? <Sun size={18} /> : <Moon size={18} />}
-           </button>
+           <div className="flex items-center gap-1">
+             {/* Ф-30: Колокольчик уведомлений */}
+             <NotificationBell />
+             <button
+               onClick={() => setIsDark(!isDark)}
+               className="p-2.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200"
+               aria-label="Toggle theme"
+             >
+               {isDark ? <Sun size={18} /> : <Moon size={18} />}
+             </button>
+           </div>
         </header>
         
         {/* Main Content Area */}

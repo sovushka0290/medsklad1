@@ -28,14 +28,16 @@ model User {
   password          String
   role              Role                 @default(NURSE)
   name              String?
-  isActive          Boolean              @default(true) // <-- Added isActive
-  pushToken         String? // <-- Added pushToken
+  isActive          Boolean              @default(true)
+  pushToken         String?
   transactions      Transaction[]
   procedureLogs     ProcedureLog[]
-  inventorySessions InventorySession[]   // <-- Added relation
-  auditLogs         AuditLog[]           // <-- Added relation
+  inventorySessions InventorySession[]
+  auditLogs         AuditLog[]
   replenishmentRequests  ReplenishmentRequest[] @relation("ReplenishmentRequester")
   replenishmentResolved  ReplenishmentRequest[] @relation("ReplenishmentResolver")
+  notifications          Notification[]
+  notificationSettings   NotificationSettings?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 }
@@ -83,6 +85,7 @@ model Batch {
   quantity       Int
   price          Float?
   supplier       String?
+  batchNumber    String?
   serialNumber   String? // <-- Added serialNumber
   expirationDate DateTime?
   createdAt      DateTime   @default(now())
@@ -102,19 +105,27 @@ enum TransactionType {
 }
 
 model Transaction {
-  id             Int             @id @default(autoincrement())
-  type           TransactionType
-  quantity       Int
-  medicationId   Int
-  medication     Medication      @relation(fields: [medicationId], references: [id])
-  locationId     Int
-  location       Location        @relation(fields: [locationId], references: [id])
-  userId         Int?
-  user           User?           @relation(fields: [userId], references: [id])
-  reason         String?
-  quantityBefore Int             @default(0)
-  quantityAfter  Int             @default(0)
-  createdAt      DateTime        @default(now())
+  id               Int             @id @default(autoincrement())
+  type             TransactionType
+  quantity         Int
+  medicationId     Int
+  medication       Medication      @relation(fields: [medicationId], references: [id])
+  locationId       Int
+  location         Location        @relation(fields: [locationId], references: [id])
+  userId           Int?
+  user             User?           @relation(fields: [userId], references: [id])
+  reason           String?
+  quantityBefore   Int             @default(0)
+  quantityAfter    Int             @default(0)
+  batchNumber      String?
+  serialNumber     String?
+  expirationDate   DateTime?
+  price            Float?
+  supplier         String?
+  purpose          String?
+  receiver         String?
+  targetLocationId Int?
+  createdAt        DateTime        @default(now())
 
   @@index([medicationId])
   @@index([locationId])
@@ -128,6 +139,7 @@ model Procedure {
   id          Int             @id @default(autoincrement())
   name        String
   description String?
+  standard    String?         // ГОСТ / СанПиН / Клинический протокол
   norms       ProcedureNorm[]
   logs        ProcedureLog[]
   createdAt   DateTime        @default(now())
@@ -154,10 +166,14 @@ model ProcedureLog {
   location    Location  @relation(fields: [locationId], references: [id])
   userId      Int
   user        User      @relation(fields: [userId], references: [id])
+  quantity    Int       @default(1) // количество манипуляций за смену
+  note        String?             // примечание смедсестры
   createdAt   DateTime  @default(now())
 
   @@index([createdAt])
   @@index([locationId, createdAt])
+  @@index([userId])
+  @@index([procedureId])
 }
 
 enum InventoryStatus {
@@ -239,5 +255,47 @@ model ReplenishmentRequest {
   @@index([status])
   @@index([requestedBy])
   @@index([locationId])
+  @@index([createdAt])
+}
+
+// ─── Ф-30: Система уведомлений ────────────────────────────────────────────────
+
+enum NotificationType {
+  CRITICAL_STOCK
+  EXPIRING_SOON
+  DEVIATION_EXCEEDED
+  REPLENISHMENT_REQUESTED
+}
+
+// Настройки уведомлений (1 запись на пользователя)
+model NotificationSettings {
+  id                   Int      @id @default(autoincrement())
+  userId               Int      @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  criticalStockEnabled Boolean  @default(true)
+  deviationEnabled     Boolean  @default(true)
+  expiringEnabled      Boolean  @default(true)
+  deviationThreshold   Int      @default(20)   // % перерасхода — порог срабатывания
+  emailEnabled         Boolean  @default(false)
+  inAppEnabled         Boolean  @default(true)
+  notifyEmail          String?  // отдельный email для уведомлений (если отличается от login)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// In-app уведомления
+model Notification {
+  id        Int                @id @default(autoincrement())
+  userId    Int
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  isRead    Boolean            @default(false)
+  meta      Json?              // { medicationId?, locationId?, deviationPct? }
+  createdAt DateTime           @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
   @@index([createdAt])
 }

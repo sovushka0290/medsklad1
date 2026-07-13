@@ -9,16 +9,36 @@ export interface CreateTransactionInput {
   locationId: number;
   userId?: number;
   reason?: string;
-  expirationDate?: string;
+  batchNumber?: string;
   serialNumber?: string;
-  supplier?: string;
+  expirationDate?: string;
   price?: number;
+  supplier?: string;
+  purpose?: string;
+  receiver?: string;
+  targetLocationId?: number;
   allowOverdraft?: boolean;
 }
 
 export const transactionService = {
   async createTransaction(input: CreateTransactionInput) {
-    const { type, quantity, medicationId, locationId, userId, reason, expirationDate, serialNumber, supplier, price, allowOverdraft } = input;
+    const { 
+      type, 
+      quantity, 
+      medicationId, 
+      locationId, 
+      userId, 
+      reason, 
+      batchNumber,
+      serialNumber,
+      expirationDate, 
+      price, 
+      supplier, 
+      purpose,
+      receiver,
+      targetLocationId,
+      allowOverdraft 
+    } = input;
 
     if (quantity <= 0) {
       throw new BadRequestError('Количество должно быть больше нуля');
@@ -50,13 +70,18 @@ export const transactionService = {
       quantityBefore = allBatches.reduce((sum, b) => sum + b.quantity, 0);
 
       if (type === TransactionType.INCOME || type === TransactionType.RETURN) {
+        if (type === TransactionType.RETURN && !reason) {
+          throw new BadRequestError('Укажите причину возврата');
+        }
         quantityAfter = quantityBefore + quantity;
         
         // Пытаемся найти партию с точно такими же параметрами (включая срок годности)
         const expDate = expirationDate ? new Date(expirationDate) : null;
         const matchingBatch = allBatches.find(b => 
           (b.expirationDate?.getTime() === expDate?.getTime()) &&
-          (b.price === price)
+          (b.price === price) &&
+          (b.batchNumber === batchNumber) &&
+          (b.serialNumber === serialNumber)
         );
 
         if (matchingBatch) {
@@ -72,6 +97,7 @@ export const transactionService = {
               quantity,
               expirationDate: expDate,
               serialNumber,
+              batchNumber,
               supplier,
               price
             },
@@ -132,6 +158,7 @@ export const transactionService = {
               locationId,
               quantity: -remainingToDeduct,
               supplier: 'Авто-Овердрафт (Оффлайн)',
+              batchNumber: batchNumber || 'ОФФЛАЙН',
             }
           });
           remainingToDeduct = 0;
@@ -142,7 +169,24 @@ export const transactionService = {
 
       // Создаем запись транзакции
       const txRecord = await tx.transaction.create({
-        data: { type, quantity, medicationId, locationId, userId, reason, quantityBefore, quantityAfter },
+        data: { 
+          type, 
+          quantity, 
+          medicationId, 
+          locationId, 
+          userId, 
+          reason, 
+          quantityBefore, 
+          quantityAfter,
+          batchNumber,
+          serialNumber,
+          expirationDate: expirationDate ? new Date(expirationDate) : undefined,
+          price,
+          supplier,
+          purpose,
+          receiver,
+          targetLocationId
+        },
         include: {
           medication: { select: { id: true, name: true, barcodes: true, minQuantity: true } },
           location: { select: { id: true, name: true } },
