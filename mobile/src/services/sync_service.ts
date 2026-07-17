@@ -18,12 +18,38 @@ export const syncOfflineTransactions = async () => {
 
     console.log(`[Sync] Starting sync of ${queue.length} offline transactions...`);
 
+    const sessionIdMap: Record<string, number> = {};
+
     for (const tx of queue) {
       try {
-        const payload = tx.data ? { ...tx.data, allowOverdraft: true } : tx.data;
+        let payload = tx.data ? { ...tx.data, allowOverdraft: true } : tx.data;
+        let cleanUrl = tx.url;
+
+        // Replace any local session ID in URL with real server ID
+        for (const [locId, realId] of Object.entries(sessionIdMap)) {
+          if (cleanUrl.includes(locId)) {
+            cleanUrl = cleanUrl.replace(locId, String(realId));
+          }
+          if (payload && typeof payload === 'object') {
+            for (const key of Object.keys(payload)) {
+              if (payload[key] === locId) {
+                payload[key] = realId;
+              }
+            }
+          }
+        }
+
+        // Clean localId from payload before sending to prevent server validation errors
+        let localIdUsed = '';
+        if (payload && payload.localId) {
+          localIdUsed = payload.localId;
+          const { localId, ...rest } = payload;
+          payload = rest;
+        }
+
         // Send request with X-Sync-Retry header to bypass interceptor offline capture
-        await api.request({
-          url: tx.url,
+        const res = await api.request({
+          url: cleanUrl,
           method: tx.method,
           data: payload,
           headers: {
@@ -32,6 +58,15 @@ export const syncOfflineTransactions = async () => {
           // Add custom attribute to skip showing alerts for each synced transaction
           ...({ skipErrorAlerts: true } as any),
         });
+
+        // If it was inventory start and we had a localId, record the mapping
+        if (localIdUsed && (cleanUrl.includes('/inventory/start') || (cleanUrl.includes('/inventory') && tx.method.toLowerCase() === 'post'))) {
+          const realId = res.data?.data?.id || res.data?.id;
+          if (realId) {
+            sessionIdMap[localIdUsed] = realId;
+            console.log(`[Sync] Mapped local session ${localIdUsed} to server session ${realId}`);
+          }
+        }
 
         // Dequeue upon successful sync
         await dequeueTransaction(tx.id);

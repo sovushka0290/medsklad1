@@ -4,8 +4,8 @@ import { api } from '../api';
 import { ShieldCheck } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('manager@medsklad.kz');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 

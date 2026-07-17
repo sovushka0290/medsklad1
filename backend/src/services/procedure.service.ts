@@ -319,7 +319,17 @@ export const getLogsJournal = async (params: {
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        procedure: { select: { id: true, name: true, standard: true } },
+        procedure: {
+          include: {
+            norms: {
+              include: {
+                medication: {
+                  select: { id: true, name: true, unit: true }
+                }
+              }
+            }
+          }
+        },
         location: { select: { id: true, name: true } },
         user: { select: { id: true, name: true, role: true } },
       },

@@ -70,12 +70,9 @@ api.interceptors.response.use((response) => {
   
   // Handle request timeouts and connection drops
   if (error.code === 'ECONNABORTED' || !error.response) {
-    if (
-      originalRequest &&
-      originalRequest.method?.toLowerCase() === 'post' && 
-      originalRequest.url?.includes('/transactions') &&
-      !originalRequest.headers['X-Sync-Retry']
-    ) {
+    const isMutating = ['post', 'put', 'delete'].includes(originalRequest?.method?.toLowerCase() || '');
+    
+    if (originalRequest && isMutating && !originalRequest.headers['X-Sync-Retry']) {
       const { enqueueTransaction } = require('./offline_queue');
       
       // Parse data if it's a string (axios config.data is often stringified)
@@ -86,17 +83,26 @@ api.interceptors.response.use((response) => {
         }
       } catch (e) {}
       
-      enqueueTransaction(originalRequest.url, originalRequest.method, parsedData);
+      let mockResponseData: any = { success: true, offline: true };
+
+      // Особый случай: создание инвентаризации offline (Ф-18)
+      if (originalRequest.url?.includes('/inventory/start') || originalRequest.url?.includes('/inventory') && originalRequest.method?.toLowerCase() === 'post') {
+        const localId = 'local_' + Date.now();
+        parsedData = { ...parsedData, localId };
+        mockResponseData = { success: true, offline: true, id: localId, status: 'ACTIVE', items: [], location: {} };
+      }
+      
+      await enqueueTransaction(originalRequest.url, originalRequest.method, parsedData);
       
       if (!skipAlerts) {
         showAlert(
           'Отсутствует сеть',
-          'Операция сохранена локально и будет отправлена при появлении интернета.\n\n' + formatDetailedError(error)
+          'Операция сохранена локально и будет отправлена при восстановлении сети.'
         );
       }
       
       // Resolve so UI thinks it succeeded
-      return Promise.resolve({ data: { success: true, offline: true } });
+      return Promise.resolve({ data: mockResponseData });
     }
 
     if (!skipAlerts) {
@@ -121,6 +127,10 @@ api.interceptors.response.use((response) => {
     try {
       const refreshToken = await SecureStore.getItemAsync('refreshToken');
       if (!refreshToken) {
+        await SecureStore.deleteItemAsync('accessToken');
+        await SecureStore.deleteItemAsync('refreshToken');
+        const { resetToLogin } = require('./navigation_ref');
+        resetToLogin();
         return Promise.reject(error);
       }
 
@@ -140,6 +150,8 @@ api.interceptors.response.use((response) => {
     } catch (refreshError) {
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
+      const { resetToLogin } = require('./navigation_ref');
+      resetToLogin();
       return Promise.reject(refreshError);
     }
   }

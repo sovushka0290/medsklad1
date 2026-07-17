@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import NetInfo from '@react-native-community/netinfo';
 import { syncOfflineTransactions } from './src/services/sync_service';
+import { navigationRef } from './src/services/navigation_ref';
 
 import LoginScreen from './src/screens/LoginScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
@@ -57,7 +58,7 @@ export default function App() {
   if (!initialRoute) return null; // Show splash screen or loading here
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <StatusBar style="light" />
       <Stack.Navigator initialRouteName={initialRoute}>
         <Stack.Screen 

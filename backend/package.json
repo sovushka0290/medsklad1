@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.ts",
     "build": "npx prisma generate && tsc",
     "postinstall": "prisma generate",
-    "start": "npx prisma db push --accept-data-loss && npx prisma db seed && node dist/src/index.js",
+    "start": "npx prisma migrate deploy && npx prisma db seed && node dist/src/index.js",
     "test": "jest --runInBand"
   },
   "dependencies": {

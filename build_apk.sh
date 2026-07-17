@@ -17,6 +17,7 @@ fi
 echo ""
 echo "📝 Создание файла конфигурации .env..."
 echo "EXPO_PUBLIC_API_URL=${BACKEND_URL}/api" > mobile/.env
+echo "EXPO_TOKEN=uFrtxk7oiik0rUj6R7j-NrjwgvRLkgzcHqkP_d9S" >> mobile/.env
 echo "Файл mobile/.env успешно обновлен."
 
 echo ""

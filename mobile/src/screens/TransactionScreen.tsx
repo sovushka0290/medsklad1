@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,8 @@ const TX_TYPES: { key: TxType; label: string; icon: string; color: string }[] = 
   { key: 'WRITE_OFF', label: 'Списание', icon: 'trash', color: '#ef4444' },
 ];
 
+import { Modal } from 'react-native';
+
 export default function TransactionScreen({ navigation }: any) {
   const [type, setType] = useState<TxType>('INCOME');
   const [medications, setMedications] = useState<any[]>([]);
@@ -32,14 +34,39 @@ export default function TransactionScreen({ navigation }: any) {
   const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
   const [medSearch, setMedSearch] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [batchNumber, setBatchNumber] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [supplier, setSupplier] = useState('');
-  const [expirationDate, setExpirationDate] = useState('');
   const [price, setPrice] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [medDropdownOpen, setMedDropdownOpen] = useState(false);
+
+  // Dropdown list date states
+  const [expDay, setExpDay] = useState('');
+  const [expMonth, setExpMonth] = useState('');
+  const [expYear, setExpYear] = useState('');
+  const [dayPickerVisible, setDayPickerVisible] = useState(false);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+
+  // Outflow select batch state
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [batchPickerVisible, setBatchPickerVisible] = useState(false);
+
+  // Reason checklist states
+  const [selectedReasonType, setSelectedReasonType] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [reasonPickerVisible, setReasonPickerVisible] = useState(false);
+
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const years = Array.from({ length: 11 }, (_, i) => String(new Date().getFullYear() + i));
+
+  const standardReasons = type === 'WRITE_OFF'
+    ? ['Истек срок годности', 'Брак / Повреждение упаковки', 'Испорчено в кабинете', 'Другое']
+    : ['Излишки кабинета', 'Отмена процедуры', 'Ошибка при получении', 'Другое'];
 
   useEffect(() => {
     fetchData();
@@ -70,6 +97,59 @@ export default function TransactionScreen({ navigation }: any) {
   const selectedLoc = locations.find(l => l.id === selectedLocId);
   const currentType = TX_TYPES.find(t => t.key === type)!;
 
+  // Filter available batches for Selected Med and Location (OUTFLOW)
+  const availableBatches = useMemo(() => {
+    if (!selectedMedId || !selectedLocId) return [];
+    return (selectedMed?.batches || []).filter(
+      (b: any) => b.locationId === selectedLocId && b.quantity > 0
+    );
+  }, [selectedMed, selectedLocId, selectedMedId]);
+
+  const selectedBatch = availableBatches.find((b: any) => b.id === selectedBatchId);
+
+  const sendTransaction = async () => {
+    setSubmitting(true);
+    try {
+      const finalReason = (type === 'WRITE_OFF' || type === 'RETURN')
+        ? (selectedReasonType === 'Другое' ? customReason : selectedReasonType)
+        : reason;
+
+      const payload: any = {
+        type,
+        quantity: parseInt(quantity, 10),
+        medicationId: selectedMedId,
+        locationId: selectedLocId,
+        reason: finalReason.trim() || undefined,
+      };
+
+      if (type === 'INCOME') {
+        payload.batchNumber = batchNumber.trim();
+        payload.expirationDate = `${expYear}-${expMonth}-${expDay}`;
+        payload.serialNumber = serialNumber.trim();
+        payload.supplier = supplier.trim();
+        payload.price = parseFloat(price);
+      } else if (type === 'OUTFLOW' && selectedBatch) {
+        payload.batchNumber = selectedBatch.batchNumber || undefined;
+        payload.expirationDate = selectedBatch.expirationDate || undefined;
+        payload.serialNumber = selectedBatch.serialNumber || undefined;
+      }
+
+      await api.post('/transactions', payload);
+
+      Alert.alert(
+        'Успешно!',
+        `${currentType.label} на ${quantity} шт. зафиксирован.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (e: any) {
+      const errMsg =
+        e.response?.data?.error || e.response?.data?.message || 'Не удалось создать транзакцию';
+      Alert.alert('Ошибка', errMsg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const validateAndSubmit = async () => {
     if (!selectedMedId) {
       Alert.alert('Ошибка', 'Выберите медикамент');
@@ -84,40 +164,100 @@ export default function TransactionScreen({ navigation }: any) {
       Alert.alert('Ошибка', 'Введите корректное количество');
       return;
     }
-    if (type === 'WRITE_OFF' && !reason.trim()) {
-      Alert.alert('Ошибка', 'Для списания обязательно укажите причину');
-      return;
+
+    if (type === 'INCOME') {
+      if (!batchNumber.trim()) {
+        Alert.alert('Ошибка', 'Поле "Номер партии" обязательно для заполнения');
+        return;
+      }
+      if (!expDay || !expMonth || !expYear) {
+        Alert.alert('Ошибка', 'Укажите срок годности (День, Месяц и Год)');
+        return;
+      }
+      if (!serialNumber.trim()) {
+        Alert.alert('Ошибка', 'Поле "Серийный номер" обязательно для заполнения');
+        return;
+      }
+      if (!price.trim() || isNaN(parseFloat(price)) || parseFloat(price) <= 0) {
+        Alert.alert('Ошибка', 'Введите корректную закупочную цену');
+        return;
+      }
+      if (!supplier.trim()) {
+        Alert.alert('Ошибка', 'Поле "Поставщик" обязательно для заполнения');
+        return;
+      }
     }
 
-    setSubmitting(true);
-    try {
-      const payload: any = {
-        type,
-        quantity: qty,
-        medicationId: selectedMedId,
-        locationId: selectedLocId,
-        reason: reason.trim() || undefined,
-      };
+    if (type === 'OUTFLOW') {
+      if (!reason.trim()) {
+        Alert.alert('Ошибка', 'Поле "Цель выдачи" обязательно для заполнения');
+        return;
+      }
+      if (availableBatches.length > 0) {
+        if (!selectedBatchId) {
+          Alert.alert('Ошибка', 'Выберите партию для списания');
+          return;
+        }
+        
+        // FIFO check
+        const oldestFirst = [...availableBatches].sort((a, b) => {
+          if (!a.expirationDate && !b.expirationDate) return 0;
+          if (!a.expirationDate) return 1;
+          if (!b.expirationDate) return -1;
+          return new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime();
+        });
 
-      if (serialNumber.trim()) payload.serialNumber = serialNumber.trim();
-      if (supplier.trim()) payload.supplier = supplier.trim();
-      if (expirationDate.trim()) payload.expirationDate = expirationDate.trim();
-      if (price.trim() && !isNaN(parseFloat(price))) payload.price = parseFloat(price);
-
-      await api.post('/transactions', payload);
-
-      Alert.alert(
-        'Успешно!',
-        `${currentType.label} на ${qty} шт. зафиксирован.`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-    } catch (e: any) {
-      const errMsg =
-        e.response?.data?.error || e.response?.data?.message || 'Не удалось создать транзакцию';
-      Alert.alert('Ошибка', errMsg);
-    } finally {
-      setSubmitting(false);
+        if (selectedBatchId !== oldestFirst[0].id) {
+          Alert.alert(
+            'Нарушение FIFO!',
+            'Вы выбрали не самую старую партию. Согласно правилу FIFO, рекомендуется выдавать сначала старейшие партии. Вы уверены, что хотите продолжить?',
+            [
+              { text: 'Нет, выбрать другую', style: 'cancel' },
+              { text: 'Да, продолжить', onPress: () => sendTransaction() }
+            ]
+          );
+          return;
+        }
+      }
     }
+
+    if (type === 'WRITE_OFF' || type === 'RETURN') {
+      const finalReason = selectedReasonType === 'Другое' ? customReason : selectedReasonType;
+      if (!finalReason.trim()) {
+        Alert.alert('Ошибка', 'Поле "Причина" обязательно для заполнения');
+        return;
+      }
+    }
+
+    sendTransaction();
+  };
+
+  const PickerModal = ({ visible, options, onSelect, onClose, title }: any) => {
+    return (
+      <Modal visible={visible} transparent={true} animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{title}</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalList}>
+              {options.map((opt: any) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.modalItem}
+                  onPress={() => { onSelect(opt); onClose(); }}
+                >
+                  <Text style={styles.modalItemText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   if (loading) {
@@ -159,7 +299,12 @@ export default function TransactionScreen({ navigation }: any) {
               <TouchableOpacity
                 key={t.key}
                 style={[styles.typeBtn, isActive && { backgroundColor: t.color, borderColor: t.color }]}
-                onPress={() => setType(t.key)}
+                onPress={() => {
+                  setType(t.key);
+                  setSelectedBatchId(null);
+                  setSelectedReasonType('');
+                  setCustomReason('');
+                }}
                 activeOpacity={0.8}
               >
                 <Ionicons name={t.icon as any} size={20} color={isActive ? '#fff' : t.color} />
@@ -199,7 +344,12 @@ export default function TransactionScreen({ navigation }: any) {
                   <TouchableOpacity
                     key={m.id}
                     style={[styles.dropdownItem, selectedMedId === m.id && styles.dropdownItemActive]}
-                    onPress={() => { setSelectedMedId(m.id); setMedDropdownOpen(false); setMedSearch(''); }}
+                    onPress={() => {
+                      setSelectedMedId(m.id);
+                      setMedDropdownOpen(false);
+                      setMedSearch('');
+                      setSelectedBatchId(null);
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text
@@ -223,7 +373,7 @@ export default function TransactionScreen({ navigation }: any) {
               <TouchableOpacity
                 key={loc.id}
                 style={[styles.chip, isActive && styles.chipActive]}
-                onPress={() => setSelectedLocId(loc.id)}
+                onPress={() => { setSelectedLocId(loc.id); setSelectedBatchId(null); }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{loc.name}</Text>
@@ -257,37 +407,49 @@ export default function TransactionScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {(type === 'INCOME' || type === 'RETURN') && (
+        {type === 'INCOME' && (
           <>
-            <Text style={styles.sectionLabel}>Серийный номер / Номер партии</Text>
+            <Text style={styles.sectionLabel}>Номер партии *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Напр. ULT-1092"
+              placeholder="Напр. B-7023"
+              placeholderTextColor="#94a3b8"
+              value={batchNumber}
+              onChangeText={setBatchNumber}
+            />
+
+            <Text style={styles.sectionLabel}>Срок годности *</Text>
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setDayPickerVisible(true)}>
+                <Text style={styles.dropdownSubBtnText}>{expDay || 'День'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setMonthPickerVisible(true)}>
+                <Text style={styles.dropdownSubBtnText}>{expMonth || 'Месяц'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setYearPickerVisible(true)}>
+                <Text style={styles.dropdownSubBtnText}>{expYear || 'Год'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.sectionLabel}>Серийный номер *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Напр. SN-552092"
               placeholderTextColor="#94a3b8"
               value={serialNumber}
               onChangeText={setSerialNumber}
             />
 
-            <Text style={styles.sectionLabel}>Поставщик</Text>
+            <Text style={styles.sectionLabel}>Поставщик *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Напр. ТОО МедМаркет"
+              placeholder="Напр. СК-Фармация"
               placeholderTextColor="#94a3b8"
               value={supplier}
               onChangeText={setSupplier}
             />
 
-            <Text style={styles.sectionLabel}>Срок годности</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ГГГГ-ММ-ДД (напр. 2026-12-31)"
-              placeholderTextColor="#94a3b8"
-              value={expirationDate}
-              onChangeText={setExpirationDate}
-              keyboardType="numbers-and-punctuation"
-            />
-
-            <Text style={styles.sectionLabel}>Закупочная цена (₸ за единицу)</Text>
+            <Text style={styles.sectionLabel}>Закупочная цена (₸ за ед.) *</Text>
             <TextInput
               style={styles.input}
               placeholder="Напр. 1500"
@@ -299,29 +461,110 @@ export default function TransactionScreen({ navigation }: any) {
           </>
         )}
 
-        {(type === 'WRITE_OFF' || type === 'OUTFLOW' || type === 'RETURN') && (
+        {type === 'OUTFLOW' && (
           <>
-            <Text style={styles.sectionLabel}>
-              Причина {type === 'WRITE_OFF' ? '*' : '(необязательно)'}
-            </Text>
+            <Text style={styles.sectionLabel}>Цель выдачи *</Text>
             <TextInput
-              style={[styles.input, styles.inputMultiline]}
-              placeholder={
-                type === 'WRITE_OFF'
-                  ? 'Укажите причину списания...'
-                  : type === 'RETURN'
-                  ? 'Причина возврата (опционально)'
-                  : 'Цель расхода (опционально)'
-              }
+              style={styles.input}
+              placeholder="Напр. Выдача в кабинет терапевта"
               placeholderTextColor="#94a3b8"
               value={reason}
               onChangeText={setReason}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
             />
+
+            <Text style={styles.sectionLabel}>Партия списания (FIFO) *</Text>
+            {availableBatches.length === 0 ? (
+              <Text style={{ fontSize: 13, color: '#ef4444', fontWeight: 'bold', marginVertical: 4 }}>
+                Нет доступных партий в выбранной локации
+              </Text>
+            ) : (
+              <TouchableOpacity
+                style={styles.selectBtn}
+                onPress={() => setBatchPickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="layers-outline" size={18} color="#64748b" />
+                <Text style={[styles.selectBtnText, !selectedBatchId && { color: '#94a3b8' }]} numberOfLines={1}>
+                  {selectedBatch
+                    ? `Партия: ${selectedBatch.batchNumber || '#' + selectedBatch.id} (до ${selectedBatch.expirationDate ? new Date(selectedBatch.expirationDate).toLocaleDateString('ru-RU') : 'нет'}) — ${selectedBatch.quantity} шт.`
+                    : 'Выберите партию для списания...'}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
           </>
         )}
+
+        {(type === 'WRITE_OFF' || type === 'RETURN') && (
+          <>
+            <Text style={styles.sectionLabel}>Причина *</Text>
+            <TouchableOpacity
+              style={styles.selectBtn}
+              onPress={() => setReasonPickerVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="help-circle-outline" size={18} color="#64748b" />
+              <Text style={[styles.selectBtnText, !selectedReasonType && { color: '#94a3b8' }]} numberOfLines={1}>
+                {selectedReasonType || 'Выберите причину из списка...'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+            </TouchableOpacity>
+
+            {selectedReasonType === 'Другое' && (
+              <TextInput
+                style={[styles.input, { marginTop: 10 }]}
+                placeholder="Опишите причину вручную..."
+                placeholderTextColor="#94a3b8"
+                value={customReason}
+                onChangeText={setCustomReason}
+              />
+            )}
+          </>
+        )}
+
+        {/* Date Dropdowns Modals */}
+        <PickerModal
+          visible={dayPickerVisible}
+          options={days}
+          onSelect={setExpDay}
+          onClose={() => setDayPickerVisible(false)}
+          title="Выберите день"
+        />
+        <PickerModal
+          visible={monthPickerVisible}
+          options={months}
+          onSelect={setExpMonth}
+          onClose={() => setMonthPickerVisible(false)}
+          title="Выберите месяц"
+        />
+        <PickerModal
+          visible={yearPickerVisible}
+          options={years}
+          onSelect={setExpYear}
+          onClose={() => setYearPickerVisible(false)}
+          title="Выберите год"
+        />
+
+        {/* Batch Dropdown Modal */}
+        <PickerModal
+          visible={batchPickerVisible}
+          options={availableBatches.map((b: any) => `ID ${b.id} | Партия: ${b.batchNumber || 'нет'} (до ${b.expirationDate ? new Date(b.expirationDate).toLocaleDateString('ru-RU') : 'нет'}) — ${b.quantity} шт.`)}
+          onSelect={(opt: string) => {
+            const id = Number(opt.split(' | ')[0].replace('ID ', ''));
+            setSelectedBatchId(id);
+          }}
+          onClose={() => setBatchPickerVisible(false)}
+          title="Выберите партию списания"
+        />
+
+        {/* Reason Dropdown Modal */}
+        <PickerModal
+          visible={reasonPickerVisible}
+          options={standardReasons}
+          onSelect={setSelectedReasonType}
+          onClose={() => setReasonPickerVisible(false)}
+          title="Выберите причину"
+        />
 
         <TouchableOpacity
           style={[styles.submitBtn, { backgroundColor: currentType.color }, submitting && { opacity: 0.7 }]}
@@ -473,4 +716,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   submitBtnText: { fontSize: 15, fontWeight: '900', color: '#fff' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: 350 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  modalList: { padding: 8 },
+  modalItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  modalItemText: { fontSize: 15, fontWeight: '600', color: '#334155', textAlign: 'center' },
+  dropdownContainer: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  dropdownSubBtn: { flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  dropdownSubBtnText: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
 });

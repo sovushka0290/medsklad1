@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart, Line,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell
 } from 'recharts';
 import Skeleton from '../components/Skeleton';
 
@@ -332,9 +332,9 @@ const Dashboard = memo(function Dashboard() {
               className="bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer transition-colors duration-300"
             >
               <option value="today">Сегодня</option>
-              <option value="week">За неделю</option>
-              <option value="month">За месяц</option>
-              <option value="custom">Произвольный диапазон</option>
+              <option value="week">Текущая неделя</option>
+              <option value="month">Текущая месяц</option>
+              <option value="custom">Произвольный период</option>
             </select>
           </div>
 
@@ -630,7 +630,12 @@ const Dashboard = memo(function Dashboard() {
                   <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickLine={false} axisLine={false} />
                   <Tooltip cursor={{ fill: 'rgba(241,245,249,0.5)' }} contentStyle={{ borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }} />
                   <Legend iconType="circle" />
-                  <Bar dataKey="Факт"    fill="#0891B2" radius={[6,6,0,0]} barSize={20} />
+                  <Bar dataKey="Факт" radius={[6,6,0,0]} barSize={20}>
+                    {proceduresData.map((entry: any, index: number) => {
+                      const isOverLimit = entry.Факт > entry.Норматив;
+                      return <Cell key={`cell-${index}`} fill={isOverLimit ? '#ef4444' : '#0891B2'} />;
+                    })}
+                  </Bar>
                   <Bar dataKey="Норматив" fill="#94A3B8" radius={[6,6,0,0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
@@ -767,9 +772,22 @@ const Dashboard = memo(function Dashboard() {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                          {item.isExpiringSoon && (
-                            <span className="text-[10px] font-bold text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 px-1.5 py-0.5 rounded">СРОК!</span>
-                          )}
+                          {(() => {
+                            if (item.expirationDate) {
+                              const daysLeft = Math.ceil((new Date(item.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                              if (daysLeft >= 0 && daysLeft < 30) {
+                                return (
+                                  <span className="text-[9px] font-extrabold text-white bg-red-600 px-1.5 py-0.5 rounded animate-pulse shadow-sm whitespace-nowrap">ИСТЕКАЕТ СРОК</span>
+                                );
+                              }
+                            }
+                            if (item.isExpiringSoon) {
+                              return (
+                                <span className="text-[10px] font-bold text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 px-1.5 py-0.5 rounded">СРОК!</span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1661,7 +1679,20 @@ const StorekeeperWorkspace = memo(function StorekeeperWorkspace({ locations, med
               criticalItems.map((item: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-center py-2.5 first:pt-0">
                   <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{item.name}</p>
+                      {(() => {
+                        if (item.expirationDate) {
+                          const daysLeft = Math.ceil((new Date(item.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                          if (daysLeft >= 0 && daysLeft < 30) {
+                            return (
+                              <span className="text-[9px] font-extrabold text-white bg-red-600 px-1.5 py-0.5 rounded animate-pulse shadow-sm whitespace-nowrap">ИСТЕКАЕТ СРОК</span>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <p className="text-[10px] text-slate-400 mt-0.5">Остаток: <span className="font-extrabold text-rose-600">{item.quantity} шт.</span> (Мин: {item.minQuantity})</p>
                   </div>
                   <button
@@ -1889,7 +1920,12 @@ const HeadNurseWorkspace = memo(function HeadNurseWorkspace({ locations, medicat
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="Норматив" fill="#0891B2" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Факт" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Факт" radius={[4, 4, 0, 0]}>
+                  {proceduresData.map((entry: any, index: number) => {
+                    const isOverLimit = entry.Факт > entry.Норматив;
+                    return <Cell key={`cell-${index}`} fill={isOverLimit ? '#ef4444' : '#8B5CF6'} />;
+                  })}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

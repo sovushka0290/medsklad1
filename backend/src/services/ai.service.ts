@@ -13,55 +13,14 @@ export interface MedicationRecognitionResult {
   ocrText?: string;
 }
 
-const MOCK_MEDS: MedicationRecognitionResult[] = [
-  {
-    name: 'Ультракаин Д-С Форте',
-    form: 'раствор для инъекций',
-    manufacturer: 'Sanofi',
-    dosage: '1,7 мл/карпула',
-    expirationDate: '2027-03',
-    confidence: 94,
-    ocrText: 'Ultracain D-S forte Articaine 40mg + Epinephrine 0.01mg'
-  },
-  {
-    name: 'Септанест 4% с адреналином',
-    form: 'карпула',
-    manufacturer: 'Septodont',
-    dosage: '1,7 мл',
-    expirationDate: '2026-09',
-    confidence: 91,
-    ocrText: 'Septanest 4% Articaine Adrenaline 1:100000'
-  },
-  {
-    name: 'Лидокаин 2%',
-    form: 'раствор для инъекций',
-    manufacturer: 'Эгис',
-    dosage: '2 мл/ампула',
-    expirationDate: '2026-12',
-    confidence: 78, // Низкая уверенность — покажет предупреждение
-    ocrText: 'Lidocaine hydrochloride 2% EGIS'
-  },
-  {
-    name: 'Аргосульфан 2%',
-    form: 'крем',
-    manufacturer: 'Jelfa',
-    expirationDate: '2027-06',
-    confidence: 87,
-    ocrText: 'Argosulfan cream 2% silver sulfathiazole'
-  }
-];
-
 export const recognizeMedicationFromImage = async (
   base64Image: string,
   mimeType: string = 'image/jpeg'
 ): Promise<MedicationRecognitionResult> => {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('[AI] GEMINI_API_KEY не настроен. Возвращаем mock-данные.');
-    return MOCK_MEDS[Math.floor(Math.random() * MOCK_MEDS.length)];
+  const openaiApiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!openaiApiKey) {
+    throw new Error('Модуль ИИ не настроен: отсутствуют ключи API (OPENAI_API_KEY/GEMINI_API_KEY)');
   }
-
-  const { GoogleGenAI } = await (new Function('return import("@google/genai")')() as Promise<any>);
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const prompt = `Ты — эксперт-фармацевт с опытом работы в стоматологических клиниках Казахстана.
 Внимательно изучи изображение медицинского препарата или расходного материала.
@@ -71,7 +30,7 @@ export const recognizeMedicationFromImage = async (
 - Форма выпуска (таблетки, ампулы, карпулы, флаконы, крем и т.д.)
 - Производитель
 - Серийный/лот номер (если виден)
-- Срок годности (в формате MM/YYYY или YYYY-MM, если виден)
+- Срок годности (в формате YYYY-MM, если виден)
 - Дозировка/концентрация
 
 Верни ТОЛЬКО валидный JSON без markdown-разметки, строго в этом формате:
@@ -89,44 +48,40 @@ export const recognizeMedicationFromImage = async (
 Если изображение нечёткое или препарат не распознаётся — установи confidence < 50.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType,
-                data: base64Image
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`
+                }
               }
-            }
-          ]
-        }
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        thinkingConfig: {
-          thinkingBudget: 512
-        }
-      }
+            ]
+          }
+        ],
+        response_format: { type: 'json_object' }
+      })
     });
 
-    const text = response.text || '{}';
-
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      // Если JSON сломан — извлечём name из текста
-      const nameMatch = text.match(/"name"\s*:\s*"([^"]+)"/);
-      return {
-        name: nameMatch?.[1] ?? 'Неизвестный препарат',
-        confidence: 30,
-        ocrText: text.substring(0, 200)
-      };
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
     }
+
+    const result = await response.json();
+    const text = result.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(text);
 
     // Нормализуем confidence
     let confidence = Number(parsed.confidence ?? 0);
@@ -145,7 +100,7 @@ export const recognizeMedicationFromImage = async (
       ocrText: parsed.ocrText ?? undefined
     };
   } catch (error: any) {
-    console.error('[AI] Ошибка Gemini API:', error?.message);
+    console.error('[AI] Ошибка OpenAI API:', error?.message);
     throw new Error('Ошибка при распознавании изображения через ИИ');
   }
 };
@@ -163,8 +118,8 @@ export const generateDashboardInsights = async (data: {
   excessItems: { name: string; quantity: number; cabinetName: string; averageDailyConsumption: number }[];
   anomalousItems: { name: string; quantityConsumed: number; percentageIncrease: number; cabinetName: string }[];
 }): Promise<AIInsight[]> => {
-  // Если ключа нет, возвращаем умный детерминированный fallback на основе переданных данных
-  if (!process.env.GEMINI_API_KEY) {
+  const openaiApiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!openaiApiKey) {
     const insights: AIInsight[] = [];
 
     // 1. Анализируем дефицит
@@ -216,11 +171,7 @@ export const generateDashboardInsights = async (data: {
     return insights;
   }
 
-  // При наличии ключа — делаем реальный запрос к Gemini API
   try {
-    const { GoogleGenAI } = await (new Function('return import("@google/genai")')() as Promise<any>);
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
     const prompt = `Ты — ведущий ИИ-аналитик медицинской клиники Nyarch.
 Проанализируй текущую ситуацию с медикаментами и расходными материалами на основе предоставленных данных:
 
@@ -241,33 +192,48 @@ ${JSON.stringify(data.anomalousItems, null, 2)}
 4. Уровень приоритета (строго одно из: "HIGH", "MEDIUM", "LOW")
 5. Конкретное действие (что именно сделать руководителю для решения проблемы)
 
-Формат вывода — строго массив JSON без дополнительного текста вокруг:
-[
-  {
-    "type": "DEFICIT" | "REALLOCATION" | "ANOMALY",
-    "title": "Заголовок рекомендации",
-    "description": "Описание с конкретными цифрами и фактами",
-    "priority": "HIGH" | "MEDIUM" | "LOW",
-    "actionable": "Конкретный шаг решения"
-  }
-]`;
+Формат вывода — строго JSON-объект следующего вида:
+{
+  "insights": [
+    {
+      "type": "DEFICIT" | "REALLOCATION" | "ANOMALY",
+      "title": "Заголовок рекомендации",
+      "description": "Описание с конкретными цифрами и фактами",
+      "priority": "HIGH" | "MEDIUM" | "LOW",
+      "actionable": "Конкретный шаг решения"
+    }
+  ]
+}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        thinkingConfig: {
-          thinkingBudget: 512
-        }
-      }
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        response_format: { type: 'json_object' }
+      })
     });
 
-    const text = response.text || '[]';
-    return JSON.parse(text);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    const text = result.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(text);
+    return parsed.insights || parsed;
   } catch (error: any) {
-    console.error('[AI Dashboard Insights] Ошибка Gemini API:', error?.message);
-    // В случае ошибки API возвращаем локальный fallback
+    console.error('[AI Dashboard Insights] Ошибка OpenAI API:', error?.message);
     return generateDashboardInsights({ ...data, criticalItems: data.criticalItems });
   }
 };

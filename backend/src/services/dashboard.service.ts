@@ -260,14 +260,25 @@ export const getDashboardMetrics = async (
       ? Math.round((medStock / averageDailyConsumption) * 10) / 10
       : 999; // Если расхода нет, ставим 999 дней (безопасно)
 
+    let minExpirationDate: Date | null = null;
+    for (const batch of med.batches) {
+      if (batch.quantity > 0 && batch.expirationDate) {
+        if (!minExpirationDate || batch.expirationDate < minExpirationDate) {
+          minExpirationDate = batch.expirationDate;
+        }
+      }
+    }
+
     if (medStock <= med.minQuantity || isExpiringSoon || daysUntilDepletion <= 15) {
       criticalItems.push({
+        id: String(med.id),
         name: med.name,
         quantity: medStock,
         minQuantity: med.minQuantity,
         isExpiringSoon,
         averageDailyConsumption,
         daysUntilDepletion,
+        expirationDate: minExpirationDate ? minExpirationDate.toISOString() : null,
       });
     }
   }

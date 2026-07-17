@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, Alert, Modal, TouchableOpacity, TextInput, ActivityIndicator, Animated, Platform } from 'react-native';
+import { StyleSheet, Text, View, Alert, Modal, TouchableOpacity, TextInput, ActivityIndicator, Animated, Platform, ScrollView, KeyboardAvoidingView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api_service';
 import { Ionicons } from '@expo/vector-icons';
@@ -137,50 +137,178 @@ export default function BarcodeScanner() {
     }
   };
 
-  const submitTransaction = async () => {
-    if (!medication || medication.isNew) {
-      Alert.alert('Ошибка', 'Сначала нужно завести товар в базу.');
-      return;
-    }
-    
-    const qty = parseInt(quantity, 10);
-    if (isNaN(qty) || qty <= 0) {
-      Alert.alert('Ошибка', 'Введите корректное количество');
-      return;
-    }
-    
-    if ((type === 'WRITE_OFF' || type === 'RETURN') && !reasonField.trim()) {
-      Alert.alert('Ошибка', 'Для списания/возврата необходимо указать причину.');
-      return;
-    }
 
+
+  // Load locations on mount for batch filtering
+  const [locations, setLocations] = useState<any[]>([]);
+  const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
+
+  // Expiration Date pickers states for scan sheet
+  const [expDay, setExpDay] = useState('');
+  const [expMonth, setExpMonth] = useState('');
+  const [expYear, setExpYear] = useState('');
+  const [dayPickerVisible, setDayPickerVisible] = useState(false);
+  const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const [yearPickerVisible, setYearPickerVisible] = useState(false);
+
+  // Price & Supplier inputs for scan sheet
+  const [priceField, setPriceField] = useState('');
+  const [supplierField, setSupplierField] = useState('');
+
+  // Selected batch for OUTFLOW
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [batchPickerVisible, setBatchPickerVisible] = useState(false);
+
+  // Reason checklist states
+  const [selectedReasonType, setSelectedReasonType] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [reasonPickerVisible, setReasonPickerVisible] = useState(false);
+
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const years = Array.from({ length: 11 }, (_, i) => String(new Date().getFullYear() + i));
+
+  const standardReasons = type === 'WRITE_OFF'
+    ? ['Истек срок годности', 'Брак / Повреждение упаковки', 'Испорчено в кабинете', 'Другое']
+    : ['Излишки кабинета', 'Отмена процедуры', 'Ошибка при получении', 'Другое'];
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    try {
+      const res = await api.get('/locations');
+      const locs = res.data || [];
+      setLocations(locs);
+      if (locs.length > 0) {
+        setSelectedLocId(locs[0].id);
+      }
+    } catch (e) {
+      console.log('Failed to fetch locations in scanner', e);
+    }
+  };
+
+  const availableBatches = React.useMemo(() => {
+    if (!medication || medication.isNew || !medication.batches || !selectedLocId) return [];
+    return medication.batches.filter((b: any) => b.locationId === selectedLocId && b.quantity > 0);
+  }, [medication, selectedLocId]);
+
+  const selectedBatch = availableBatches.find((b: any) => b.id === selectedBatchId);
+
+  const takePhotoAndRecognize = async () => {
+    if (!cameraRef.current) return;
+    setRecognizing(true);
+    setAiResult(null);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.6 });
+      const base64 = `data:image/jpeg;base64,${photo.base64}`;
+      
+      const response = await api.post('/ai/recognize', { image: base64 });
+      const { text, confidence, medication: foundMed, manufacturer, dosage, expirationDate, serialNumber, ocrText } = response.data.data;
+
+      const ocrData = { manufacturer, dosage, expirationDate, serialNumber, ocrText, confidence };
+      setAiResult(ocrData);
+      
+      if (confidence < 80) {
+        Alert.alert(
+          'ИИ не уверен. Заполните данные вручную',
+          `Уверенность распознавания ИИ: ${confidence}%. Пожалуйста, введите данные или выполните поиск препарата вручную.`,
+          [
+            {
+              text: 'Снять заново',
+              style: 'cancel',
+              onPress: () => {
+                setAiResult(null);
+                setScanned(false);
+              }
+            },
+            {
+              text: 'Ввести вручную',
+              onPress: () => {
+                if (canCreateMedication) {
+                  setMedication({ isNew: true, name: text || '', barcode: 'Распознано ИИ (низкая уверенность)' });
+                } else {
+                  setMedication(null);
+                  setSearchQuery(text || '');
+                  handleSearchMedication(text || '');
+                }
+                setBarcode('Распознано ИИ');
+                setModalVisible(true);
+              }
+            }
+          ]
+        );
+      } else if (foundMed) {
+        setMedication(foundMed);
+        setBarcode(foundMed.barcode || 'Распознано ИИ');
+        setModalVisible(true);
+        // Pre-fill parsed fields if INCOME
+        if (expirationDate) {
+          const parts = expirationDate.split('-');
+          if (parts.length === 3) {
+            setExpYear(parts[0]);
+            setExpMonth(parts[1]);
+            setExpDay(parts[2]);
+          } else if (parts.length === 2) {
+            setExpYear(parts[0]);
+            setExpMonth(parts[1]);
+            setExpDay('01');
+          }
+        }
+        if (serialNumber) setSerialNumberField(serialNumber);
+      } else {
+        if (canCreateMedication) {
+          setMedication({ isNew: true, name: text || '', barcode: 'Распознано ИИ' });
+          setBarcode('Распознано ИИ');
+          setModalVisible(true);
+        } else {
+          setMedication(null);
+          setSearchQuery(text || '');
+          handleSearchMedication(text || '');
+          setBarcode('Распознано ИИ');
+          setModalVisible(true);
+        }
+      }
+    } catch (e) {
+      Alert.alert('Ошибка', 'Не удалось распознать изображение. Попробуйте ещё раз.');
+    } finally {
+      setRecognizing(false);
+    }
+  };
+
+  const sendTransaction = async () => {
     setSubmitting(true);
     try {
-      const locResponse = await api.get('/locations');
-      const defaultLocId = locResponse.data[0]?.id || 1;
+      const finalReason = (type === 'WRITE_OFF' || type === 'RETURN')
+        ? (selectedReasonType === 'Другое' ? customReason : selectedReasonType)
+        : reasonField;
 
       const payload: any = {
         type,
-        quantity: qty,
+        quantity: parseInt(quantity, 10),
         medicationId: medication.id,
-        locationId: defaultLocId,
-        // Поля для оффлайн-синхронизации (идентификация в логах)
-        medicationName: medication.name,
-        // Разрешаем выдачу при оффлайне (серверная проверка при синхронизации)
+        locationId: selectedLocId || 1,
+        reason: finalReason.trim() || undefined,
         allowOverdraft: type === 'OUTFLOW',
       };
 
-      // Необязательные поля партии и операции
-      if (batchNumber.trim()) payload.batchNumber = batchNumber.trim();
-      if (serialNumber.trim()) payload.serialNumber = serialNumber.trim();
-      if (purposeField.trim()) payload.purpose = purposeField.trim();
-      if (receiverField.trim()) payload.receiver = receiverField.trim();
-      if (reasonField.trim()) payload.reason = reasonField.trim();
-      else if (type === 'WRITE_OFF') payload.reason = 'Списание через мобильное приложение';
+      if (type === 'INCOME') {
+        payload.batchNumber = batchNumber.trim();
+        payload.expirationDate = `${expYear}-${expMonth}-${expDay}`;
+        payload.serialNumber = serialNumber.trim();
+        payload.supplier = supplierField.trim();
+        payload.price = parseFloat(priceField);
+      } else if (type === 'OUTFLOW' && selectedBatch) {
+        payload.batchNumber = selectedBatch.batchNumber || undefined;
+        payload.expirationDate = selectedBatch.expirationDate || undefined;
+        payload.serialNumber = selectedBatch.serialNumber || undefined;
+        payload.purpose = purposeField.trim() || undefined;
+        payload.receiver = receiverField.trim() || undefined;
+      }
 
       const result = await api.post('/transactions', payload);
       
-      // Check if operation was saved offline
       if (result.data?.offline) {
         Alert.alert(
           '📱 Сохранено оффлайн',
@@ -195,6 +323,113 @@ export default function BarcodeScanner() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submitTransaction = async () => {
+    if (!medication || medication.isNew) {
+      Alert.alert('Ошибка', 'Сначала нужно завести товар в базу.');
+      return;
+    }
+    
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty <= 0) {
+      Alert.alert('Ошибка', 'Введите корректное количество');
+      return;
+    }
+
+    if (type === 'INCOME') {
+      if (!batchNumber.trim()) {
+        Alert.alert('Ошибка', 'Поле "Номер партии" обязательно для заполнения');
+        return;
+      }
+      if (!expDay || !expMonth || !expYear) {
+        Alert.alert('Ошибка', 'Укажите срок годности (День, Месяц и Год)');
+        return;
+      }
+      if (!serialNumber.trim()) {
+        Alert.alert('Ошибка', 'Поле "Серийный номер" обязательно для заполнения');
+        return;
+      }
+      if (!priceField.trim() || isNaN(parseFloat(priceField)) || parseFloat(priceField) <= 0) {
+        Alert.alert('Ошибка', 'Введите корректную закупочную цену');
+        return;
+      }
+      if (!supplierField.trim()) {
+        Alert.alert('Ошибка', 'Поле "Поставщик" обязательно для заполнения');
+        return;
+      }
+    }
+
+    if (type === 'OUTFLOW') {
+      if (!purposeField.trim()) {
+        Alert.alert('Ошибка', 'Укажите цель выдачи (поле обязательное)');
+        return;
+      }
+      if (availableBatches.length > 0) {
+        if (!selectedBatchId) {
+          Alert.alert('Ошибка', 'Выберите конкретную партию для выдачи');
+          return;
+        }
+        
+        // FIFO check
+        const oldestFirst = [...availableBatches].sort((a, b) => {
+          if (!a.expirationDate && !b.expirationDate) return 0;
+          if (!a.expirationDate) return 1;
+          if (!b.expirationDate) return -1;
+          return new Date(a.expirationDate).getTime() - new Date(b.expirationDate).getTime();
+        });
+
+        if (selectedBatchId !== oldestFirst[0].id) {
+          Alert.alert(
+            'Нарушение FIFO!',
+            'Вы выбрали не самую старую партию. Согласно правилу FIFO, рекомендуется выдавать сначала старейшие партии. Продолжить?',
+            [
+              { text: 'Нет, выбрать другую', style: 'cancel' },
+              { text: 'Да, продолжить', onPress: () => sendTransaction() }
+            ]
+          );
+          return;
+        }
+      }
+    }
+
+    if (type === 'WRITE_OFF' || type === 'RETURN') {
+      const finalReason = selectedReasonType === 'Другое' ? customReason : selectedReasonType;
+      if (!finalReason.trim()) {
+        Alert.alert('Ошибка', 'Поле "Причина" обязательно для заполнения');
+        return;
+      }
+    }
+
+    sendTransaction();
+  };
+
+  const PickerModal = ({ visible, options, onSelect, onClose, title }: any) => {
+    return (
+      <Modal visible={visible} transparent={true} animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modalContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>{title}</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalList}>
+              {options.map((opt: any) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.modalItem}
+                  onPress={() => { onSelect(opt); onClose(); }}
+                >
+                  <Text style={styles.modalItemText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   const submitNewMedication = async () => {
@@ -234,6 +469,14 @@ export default function BarcodeScanner() {
     setPurposeField('');
     setReceiverField('');
     setReasonField('');
+    setExpDay('');
+    setExpMonth('');
+    setExpYear('');
+    setPriceField('');
+    setSupplierField('');
+    setSelectedBatchId(null);
+    setSelectedReasonType('');
+    setCustomReason('');
     setTimeout(() => setScanned(false), 500); 
   };
 
@@ -266,96 +509,6 @@ export default function BarcodeScanner() {
   const allowReturn = ['ADMIN', 'STOREKEEPER', 'HEAD_NURSE'].includes(role);
   const allowWriteOff = ['ADMIN', 'HEAD_NURSE', 'NURSE'].includes(role);
 
-  const takePhotoAndRecognize = async () => {
-    if (!cameraRef.current) return;
-    setRecognizing(true);
-    setAiResult(null);
-    try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.6 });
-      const base64 = `data:image/jpeg;base64,${photo.base64}`;
-      
-      const response = await api.post('/ai/recognize', { image: base64 });
-      const { text, confidence, medication: foundMed, manufacturer, dosage, expirationDate, serialNumber, ocrText } = response.data.data;
-
-      // Сохраняем OCR-данные с упаковки для отображения
-      const ocrData = { manufacturer, dosage, expirationDate, serialNumber, ocrText, confidence };
-      setAiResult(ocrData);
-      
-      if (confidence < 80) {
-        if (canCreateMedication) {
-          Alert.alert(
-            '⚠️ Низкая уверенность ИИ',
-            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"`,
-            [
-              {
-                text: 'Сфотографировать повторно',
-                style: 'cancel',
-                onPress: () => {
-                  setAiResult(null);
-                  setScanned(false);
-                }
-              },
-              {
-                text: 'Ввести вручную',
-                onPress: () => {
-                  setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ (низкая уверенность)' });
-                  setBarcode('Распознано ИИ');
-                  setModalVisible(true);
-                }
-              }
-            ]
-          );
-        } else {
-          Alert.alert(
-            '⚠️ Низкая уверенность ИИ',
-            `Уверенность распознавания всего ${confidence}% (меньше порога 80%).\nРаспознанный текст: "${text}"`,
-            [
-              {
-                text: 'Сфотографировать повторно',
-                style: 'cancel',
-                onPress: () => {
-                  setAiResult(null);
-                  setScanned(false);
-                }
-              },
-              {
-                text: 'Искать вручную',
-                onPress: () => {
-                  setMedication(null);
-                  setSearchQuery(text);
-                  handleSearchMedication(text);
-                  setBarcode('Распознано ИИ');
-                  setModalVisible(true);
-                }
-              }
-            ]
-          );
-        }
-      } else if (foundMed) {
-        setMedication(foundMed);
-        setBarcode(foundMed.barcode || 'Распознано ИИ');
-        setModalVisible(true);
-      } else {
-        if (canCreateMedication) {
-          setMedication({ isNew: true, name: text, barcode: 'Распознано ИИ' });
-          setBarcode('Распознано ИИ');
-          setModalVisible(true);
-        } else {
-          // Автоматический переход к поиску препарата
-          setMedication(null);
-          setSearchQuery(text);
-          handleSearchMedication(text);
-          setBarcode('Распознано ИИ');
-          setModalVisible(true);
-        }
-      }
-    } catch (e) {
-      Alert.alert('Ошибка', 'Не удалось распознать изображение. Попробуйте ещё раз.');
-    } finally {
-      setRecognizing(false);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <CameraView
@@ -367,7 +520,6 @@ export default function BarcodeScanner() {
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         style={StyleSheet.absoluteFill}
       >
-        {/* Premium Dark Overlay Mask */}
         <View style={styles.overlayContainer}>
           <View style={styles.topBar}>
             <Text style={styles.topBarTitle}>Сканирование</Text>
@@ -382,13 +534,11 @@ export default function BarcodeScanner() {
           <View style={styles.middleRow}>
             <View style={styles.sideOverlay} />
             <View style={styles.scannerTarget}>
-              {/* Corner borders for the target box */}
               <View style={[styles.corner, styles.topLeft]} />
               <View style={[styles.corner, styles.topRight]} />
               <View style={[styles.corner, styles.bottomLeft]} />
               <View style={[styles.corner, styles.bottomRight]} />
               
-              {/* Red laser line animation */}
               <Animated.View
                 style={[
                   styles.scanLine,
@@ -430,253 +580,400 @@ export default function BarcodeScanner() {
         visible={modalVisible}
         onRequestClose={closeModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Новая операция</Text>
-              <TouchableOpacity onPress={closeModal}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.barcodeText}>Штрих-код: {barcode}</Text>
-
-            {/* OCR-данные с упаковки (только при ИИ-распознавании) */}
-            {aiResult && (aiResult.manufacturer || aiResult.dosage || aiResult.expirationDate || aiResult.serialNumber) && (
-              <View style={styles.aiInfoCard}>
-                <View style={styles.aiInfoHeader}>
-                  <Ionicons name="sparkles" size={14} color="#7C3AED" />
-                  <Text style={styles.aiInfoTitle}>Данные с упаковки (ИИ)</Text>
-                  <View style={styles.aiConfidenceBadge}>
-                    <Text style={styles.aiConfidenceText}>{aiResult.confidence}%</Text>
-                  </View>
-                </View>
-                {aiResult.manufacturer && (
-                  <View style={styles.aiInfoRow}>
-                    <Text style={styles.aiInfoLabel}>Производитель</Text>
-                    <Text style={styles.aiInfoValue}>{aiResult.manufacturer}</Text>
-                  </View>
-                )}
-                {aiResult.dosage && (
-                  <View style={styles.aiInfoRow}>
-                    <Text style={styles.aiInfoLabel}>Дозировка</Text>
-                    <Text style={styles.aiInfoValue}>{aiResult.dosage}</Text>
-                  </View>
-                )}
-                {aiResult.expirationDate && (
-                  <View style={styles.aiInfoRow}>
-                    <Text style={styles.aiInfoLabel}>Срок годности</Text>
-                    <Text style={[styles.aiInfoValue, { color: '#F59E0B' }]}>{aiResult.expirationDate}</Text>
-                  </View>
-                )}
-                {aiResult.serialNumber && (
-                  <View style={styles.aiInfoRow}>
-                    <Text style={styles.aiInfoLabel}>Серия / Лот</Text>
-                    <Text style={styles.aiInfoValue}>{aiResult.serialNumber}</Text>
-                  </View>
-                )}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Новая операция</Text>
+                <TouchableOpacity onPress={closeModal}>
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
               </View>
-            )}
 
-            {loadingMed ? (
-              <ActivityIndicator size="small" color="#0891B2" style={styles.loader} />
-            ) : medication ? (
-              medication.isNew ? (
-                <View style={styles.newMedBox}>
-                  <Text style={styles.notFound}>Товар не найден. Создать новый?</Text>
-                  <TextInput
-                    style={styles.inputSmall}
-                    placeholder="Название (МНН)"
-                    value={medication.name}
-                    onChangeText={(val) => setMedication({ ...medication, name: val })}
-                  />
-                  
-                  <Text style={[styles.label, { marginTop: 12 }]}>Группа товара:</Text>
-                  <View style={styles.groupGrid}>
-                    {GROUPS.map((g) => (
-                      <TouchableOpacity
-                        key={g.id}
-                        style={[
-                          styles.groupBtn,
-                          selectedGroupId === g.id && styles.groupBtnActive
-                        ]}
-                        onPress={() => setSelectedGroupId(g.id)}
-                      >
-                        <Text
-                          style={[
-                            styles.groupBtnText,
-                            selectedGroupId === g.id && styles.groupBtnTextActive
-                          ]}
-                        >
-                          {g.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.medicationBox}>
-                  <Text style={styles.medName}>{medication.name}</Text>
-                  <Text style={styles.medInfo}>Мин. остаток: {medication.minQuantity}</Text>
-                </View>
-              )
-            ) : (
-              <View style={styles.searchContainer}>
-                <Text style={styles.notFound}>Препарат не найден в базе данных.</Text>
-                <Text style={styles.searchLabel}>Поиск препарата вручную:</Text>
-                <View style={styles.searchRow}>
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Введите название или МНН..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                  <TouchableOpacity
-                    style={styles.searchBtn}
-                    onPress={() => handleSearchMedication(searchQuery)}
-                  >
-                    <Ionicons name="search" size={18} color="#fff" />
-                  </TouchableOpacity>
-                </View>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.barcodeText}>Штрих-код: {barcode}</Text>
 
-                {searchLoading ? (
-                  <ActivityIndicator size="small" color="#0891B2" style={{ marginVertical: 10 }} />
-                ) : (
-                  <View style={styles.searchResultsList}>
-                    {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-                      <Text style={styles.noResultsText}>Ничего не найдено</Text>
+                {aiResult && (aiResult.manufacturer || aiResult.dosage || aiResult.expirationDate || aiResult.serialNumber) && (
+                  <View style={styles.aiInfoCard}>
+                    <View style={styles.aiInfoHeader}>
+                      <Ionicons name="sparkles" size={14} color="#7C3AED" />
+                      <Text style={styles.aiInfoTitle}>Данные с упаковки (ИИ)</Text>
+                      <View style={styles.aiConfidenceBadge}>
+                        <Text style={styles.aiConfidenceText}>{aiResult.confidence}%</Text>
+                      </View>
+                    </View>
+                    {aiResult.manufacturer && (
+                      <View style={styles.aiInfoRow}>
+                        <Text style={styles.aiInfoLabel}>Производитель</Text>
+                        <Text style={styles.aiInfoValue}>{aiResult.manufacturer}</Text>
+                      </View>
                     )}
-                    {searchResults.map((item) => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={styles.searchResultItem}
-                        onPress={() => {
-                          setMedication(item);
-                          setBarcode(item.barcodes[0] || 'Распознано ИИ');
-                        }}
-                      >
-                        <Text style={styles.searchResultName}>{item.name}</Text>
-                        {item.mnn && <Text style={styles.searchResultMnn}>МНН: {item.mnn}</Text>}
-                      </TouchableOpacity>
-                    ))}
+                    {aiResult.dosage && (
+                      <View style={styles.aiInfoRow}>
+                        <Text style={styles.aiInfoLabel}>Дозировка</Text>
+                        <Text style={styles.aiInfoValue}>{aiResult.dosage}</Text>
+                      </View>
+                    )}
+                    {aiResult.expirationDate && (
+                      <View style={styles.aiInfoRow}>
+                        <Text style={styles.aiInfoLabel}>Срок годности</Text>
+                        <Text style={[styles.aiInfoValue, { color: '#F59E0B' }]}>{aiResult.expirationDate}</Text>
+                      </View>
+                    )}
+                    {aiResult.serialNumber && (
+                      <View style={styles.aiInfoRow}>
+                        <Text style={styles.aiInfoLabel}>Серия / Лот</Text>
+                        <Text style={styles.aiInfoValue}>{aiResult.serialNumber}</Text>
+                      </View>
+                    )}
                   </View>
                 )}
-              </View>
-            )}
 
-            {!medication?.isNew && medication && (
-              <>
-                <Text style={styles.label}>Тип операции:</Text>
-                <View style={styles.typeSelector}>
-                  {allowIncome && (
-                    <TouchableOpacity 
-                      style={[styles.typeBtn, type === 'INCOME' && styles.typeBtnActive]} 
-                      onPress={() => setType('INCOME')}
-                    >
-                      <Text style={[styles.typeBtnText, type === 'INCOME' && styles.typeBtnTextActive]}>Приёмка</Text>
-                    </TouchableOpacity>
-                  )}
-                  {allowOutflow && (
-                    <TouchableOpacity 
-                      style={[styles.typeBtn, type === 'OUTFLOW' && styles.typeBtnActive]} 
-                      onPress={() => setType('OUTFLOW')}
-                    >
-                      <Text style={[styles.typeBtnText, type === 'OUTFLOW' && styles.typeBtnTextActive]}>Выдача</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={styles.typeSelector}>
-                  {allowReturn && (
-                    <TouchableOpacity 
-                      style={[styles.typeBtn, type === 'RETURN' && styles.typeBtnActive]} 
-                      onPress={() => setType('RETURN')}
-                    >
-                      <Text style={[styles.typeBtnText, type === 'RETURN' && styles.typeBtnTextActive]}>Возврат</Text>
-                    </TouchableOpacity>
-                  )}
-                  {allowWriteOff && (
-                    <TouchableOpacity 
-                      style={[styles.typeBtn, type === 'WRITE_OFF' && styles.typeBtnActive]} 
-                      onPress={() => setType('WRITE_OFF')}
-                    >
-                      <Text style={[styles.typeBtnText, type === 'WRITE_OFF' && styles.typeBtnTextActive]}>Списание</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )}
-
-            {medication && (
-              <>
-                <Text style={styles.label}>Количество {medication?.isNew ? '(Мин. остаток)' : ''}:</Text>
-                <TextInput
-                  style={styles.input}
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  keyboardType="number-pad"
-                  placeholder="1"
-                />
-
-                {/* Необязательные поля партии */}
-                {!medication?.isNew && (
-                  <>
-                    <Text style={[styles.label, { marginTop: 8, color: '#64748b', fontSize: 12 }]}>
-                      Данные партии (необязательно):
-                    </Text>
-                    <TextInput
-                      style={[styles.input, styles.inputSmall]}
-                      value={batchNumber}
-                      onChangeText={setBatchNumber}
-                      placeholder="Номер партии / лот"
-                    />
-                    <TextInput
-                      style={[styles.input, styles.inputSmall]}
-                      value={serialNumber}
-                      onChangeText={setSerialNumberField}
-                      placeholder="Серийный номер"
-                    />
-                    {type === 'OUTFLOW' && (
-                      <>
-                        <TextInput
-                          style={[styles.input, styles.inputSmall]}
-                          value={purposeField}
-                          onChangeText={setPurposeField}
-                          placeholder="Цель выдачи (процедура, кабинет...)"
-                        />
-                        <TextInput
-                          style={[styles.input, styles.inputSmall]}
-                          value={receiverField}
-                          onChangeText={setReceiverField}
-                          placeholder="Получатель (ФИО / кабинет)"
-                        />
-                      </>
-                    )}
-                    {(type === 'WRITE_OFF' || type === 'RETURN') && (
+                {loadingMed ? (
+                  <ActivityIndicator size="small" color="#0891B2" style={styles.loader} />
+                ) : medication ? (
+                  medication.isNew ? (
+                    <View style={styles.newMedBox}>
+                      <Text style={styles.notFound}>Товар не найден. Создать новый?</Text>
                       <TextInput
-                        style={[styles.input, styles.inputSmall, { borderColor: reasonField.trim() ? '#10b981' : '#ef4444', borderWidth: 1.5 }]}
-                        value={reasonField}
-                        onChangeText={setReasonField}
-                        placeholder={`Причина ${type === 'WRITE_OFF' ? 'списания' : 'возврата'} *`}
+                        style={styles.inputSmall}
+                        placeholder="Название (МНН)"
+                        value={medication.name}
+                        onChangeText={(val) => setMedication({ ...medication, name: val })}
                       />
+                      
+                      <Text style={[styles.label, { marginTop: 12 }]}>Группа товара:</Text>
+                      <View style={styles.groupGrid}>
+                        {GROUPS.map((g) => (
+                          <TouchableOpacity
+                            key={g.id}
+                            style={[
+                              styles.groupBtn,
+                              selectedGroupId === g.id && styles.groupBtnActive
+                            ]}
+                            onPress={() => setSelectedGroupId(g.id)}
+                          >
+                            <Text
+                              style={[
+                                styles.groupBtnText,
+                                selectedGroupId === g.id && styles.groupBtnTextActive
+                              ]}
+                            >
+                              {g.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.medicationBox}>
+                      <Text style={styles.medName}>{medication.name}</Text>
+                      <Text style={styles.medInfo}>Мин. остаток: {medication.minQuantity}</Text>
+                    </View>
+                  )
+                ) : (
+                  <View style={styles.searchContainer}>
+                    <Text style={styles.notFound}>Препарат не найден в базе данных.</Text>
+                    <Text style={styles.searchLabel}>Поиск препарата вручную:</Text>
+                    <View style={styles.searchRow}>
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Введите название или МНН..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                      />
+                      <TouchableOpacity
+                        style={styles.searchBtn}
+                        onPress={() => handleSearchMedication(searchQuery)}
+                      >
+                        <Ionicons name="search" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {searchLoading ? (
+                      <ActivityIndicator size="small" color="#0891B2" style={{ marginVertical: 10 }} />
+                    ) : (
+                      <View style={styles.searchResultsList}>
+                        {searchResults.length === 0 && searchQuery.trim().length >= 2 && (
+                          <Text style={styles.noResultsText}>Ничего не найдено</Text>
+                        )}
+                        {searchResults.map((item) => (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={styles.searchResultItem}
+                            onPress={() => {
+                              setMedication(item);
+                              setBarcode(item.barcodes[0] || 'Распознано ИИ');
+                            }}
+                          >
+                            <Text style={styles.searchResultName}>{item.name}</Text>
+                            {item.mnn && <Text style={styles.searchResultMnn}>МНН: {item.mnn}</Text>}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     )}
+                  </View>
+                )}
+
+                {!medication?.isNew && medication && (
+                  <>
+                    <Text style={styles.label}>Локация проведения:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 10 }}>
+                      {locations.map(loc => {
+                        const isActive = selectedLocId === loc.id;
+                        return (
+                          <TouchableOpacity
+                            key={loc.id}
+                            style={[
+                              styles.typeBtn,
+                              isActive && { backgroundColor: '#0891B2', borderColor: '#0891B2' }
+                            ]}
+                            onPress={() => { setSelectedLocId(loc.id); setSelectedBatchId(null); }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.typeBtnText, isActive && { color: '#fff' }]}>{loc.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    <Text style={styles.label}>Тип операции:</Text>
+                    <View style={styles.typeSelector}>
+                      {allowIncome && (
+                        <TouchableOpacity 
+                          style={[styles.typeBtn, type === 'INCOME' && styles.typeBtnActive]} 
+                          onPress={() => { setType('INCOME'); setSelectedBatchId(null); }}
+                        >
+                          <Text style={[styles.typeBtnText, type === 'INCOME' && styles.typeBtnTextActive]}>Приёмка</Text>
+                        </TouchableOpacity>
+                      )}
+                      {allowOutflow && (
+                        <TouchableOpacity 
+                          style={[styles.typeBtn, type === 'OUTFLOW' && styles.typeBtnActive]} 
+                          onPress={() => { setType('OUTFLOW'); setSelectedBatchId(null); }}
+                        >
+                          <Text style={[styles.typeBtnText, type === 'OUTFLOW' && styles.typeBtnTextActive]}>Выдача</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={styles.typeSelector}>
+                      {allowReturn && (
+                        <TouchableOpacity 
+                          style={[styles.typeBtn, type === 'RETURN' && styles.typeBtnActive]} 
+                          onPress={() => { setType('RETURN'); setSelectedBatchId(null); }}
+                        >
+                          <Text style={[styles.typeBtnText, type === 'RETURN' && styles.typeBtnTextActive]}>Возврат</Text>
+                        </TouchableOpacity>
+                      )}
+                      {allowWriteOff && (
+                        <TouchableOpacity 
+                          style={[styles.typeBtn, type === 'WRITE_OFF' && styles.typeBtnActive]} 
+                          onPress={() => { setType('WRITE_OFF'); setSelectedBatchId(null); }}
+                        >
+                          <Text style={[styles.typeBtnText, type === 'WRITE_OFF' && styles.typeBtnTextActive]}>Списание</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </>
                 )}
 
-                <TouchableOpacity 
-                  style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} 
-                  onPress={medication?.isNew ? submitNewMedication : submitTransaction}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>{medication?.isNew ? 'Создать товар' : 'Подтвердить'}</Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
+                {medication && (
+                  <>
+                    <Text style={styles.label}>Количество {medication?.isNew ? '(Мин. остаток)' : ''}:</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={quantity}
+                      onChangeText={setQuantity}
+                      keyboardType="number-pad"
+                      placeholder="1"
+                    />
+
+                    {!medication?.isNew && (
+                      <>
+                        {type === 'INCOME' && (
+                          <>
+                            <Text style={styles.label}>Номер партии *</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={batchNumber}
+                              onChangeText={setBatchNumber}
+                              placeholder="Напр. B-7023"
+                            />
+
+                            <Text style={styles.label}>Срок годности *</Text>
+                            <View style={styles.dropdownContainer}>
+                              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setDayPickerVisible(true)}>
+                                <Text style={styles.dropdownSubBtnText}>{expDay || 'День'}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setMonthPickerVisible(true)}>
+                                <Text style={styles.dropdownSubBtnText}>{expMonth || 'Месяц'}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={styles.dropdownSubBtn} onPress={() => setYearPickerVisible(true)}>
+                                <Text style={styles.dropdownSubBtnText}>{expYear || 'Год'}</Text>
+                              </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.label}>Серийный номер *</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={serialNumber}
+                              onChangeText={setSerialNumberField}
+                              placeholder="Напр. SN-552092"
+                            />
+
+                            <Text style={styles.label}>Поставщик *</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={supplierField}
+                              onChangeText={setSupplierField}
+                              placeholder="Напр. СК-Фармация"
+                            />
+
+                            <Text style={styles.label}>Закупочная цена (₸ за ед.) *</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={priceField}
+                              onChangeText={setPriceField}
+                              placeholder="Напр. 1500"
+                              keyboardType="decimal-pad"
+                            />
+                          </>
+                        )}
+
+                        {type === 'OUTFLOW' && (
+                          <>
+                            <Text style={styles.label}>Цель выдачи *</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={purposeField}
+                              onChangeText={setPurposeField}
+                              placeholder="Цель выдачи (процедура, кабинет...)"
+                            />
+
+                            <Text style={styles.label}>Получатель (ФИО / кабинет)</Text>
+                            <TextInput
+                              style={[styles.input, { marginBottom: 12 }]}
+                              value={receiverField}
+                              onChangeText={setReceiverField}
+                              placeholder="Получатель"
+                            />
+
+                            <Text style={styles.label}>Партия списания (FIFO) *</Text>
+                            {availableBatches.length === 0 ? (
+                              <Text style={{ fontSize: 13, color: '#ef4444', fontWeight: 'bold', marginVertical: 4 }}>
+                                Нет доступных партий в выбранной локации
+                              </Text>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.selectBtn}
+                                onPress={() => setBatchPickerVisible(true)}
+                                activeOpacity={0.8}
+                              >
+                                <Ionicons name="layers-outline" size={18} color="#64748b" />
+                                <Text style={[styles.selectBtnText, !selectedBatchId && { color: '#94a3b8' }]} numberOfLines={1}>
+                                  {selectedBatch
+                                    ? `Партия: ${selectedBatch.batchNumber || '#' + selectedBatch.id} (до ${selectedBatch.expirationDate ? new Date(selectedBatch.expirationDate).toLocaleDateString('ru-RU') : 'нет'}) — ${selectedBatch.quantity} шт.`
+                                    : 'Выберите партию для списания...'}
+                                </Text>
+                                <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        )}
+
+                        {(type === 'WRITE_OFF' || type === 'RETURN') && (
+                          <>
+                            <Text style={styles.label}>Причина *</Text>
+                            <TouchableOpacity
+                              style={styles.selectBtn}
+                              onPress={() => setReasonPickerVisible(true)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="help-circle-outline" size={18} color="#64748b" />
+                              <Text style={[styles.selectBtnText, !selectedReasonType && { color: '#94a3b8' }]} numberOfLines={1}>
+                                {selectedReasonType || 'Выберите причину из списка...'}
+                              </Text>
+                              <Ionicons name="chevron-down" size={18} color="#94a3b8" />
+                            </TouchableOpacity>
+
+                            {selectedReasonType === 'Другое' && (
+                              <TextInput
+                                style={[styles.input, { marginTop: 10 }]}
+                                placeholder="Опишите причину вручную..."
+                                value={customReason}
+                                onChangeText={setCustomReason}
+                              />
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {/* Modals for scan sheet pickers */}
+                    <PickerModal
+                      visible={dayPickerVisible}
+                      options={days}
+                      onSelect={setExpDay}
+                      onClose={() => setDayPickerVisible(false)}
+                      title="Выберите день"
+                    />
+                    <PickerModal
+                      visible={monthPickerVisible}
+                      options={months}
+                      onSelect={setExpMonth}
+                      onClose={() => setMonthPickerVisible(false)}
+                      title="Выберите месяц"
+                    />
+                    <PickerModal
+                      visible={yearPickerVisible}
+                      options={years}
+                      onSelect={setExpYear}
+                      onClose={() => setYearPickerVisible(false)}
+                      title="Выберите год"
+                    />
+
+                    {/* Batch Dropdown Modal */}
+                    <PickerModal
+                      visible={batchPickerVisible}
+                      options={availableBatches.map((b: any) => `ID ${b.id} | Партия: ${b.batchNumber || 'нет'} (до ${b.expirationDate ? new Date(b.expirationDate).toLocaleDateString('ru-RU') : 'нет'}) — ${b.quantity} шт.`)}
+                      onSelect={(opt: string) => {
+                        const id = Number(opt.split(' | ')[0].replace('ID ', ''));
+                        setSelectedBatchId(id);
+                      }}
+                      onClose={() => setBatchPickerVisible(false)}
+                      title="Выберите партию списания"
+                    />
+
+                    {/* Reason Dropdown Modal */}
+                    <PickerModal
+                      visible={reasonPickerVisible}
+                      options={standardReasons}
+                      onSelect={setSelectedReasonType}
+                      onClose={() => setReasonPickerVisible(false)}
+                      title="Выберите причину"
+                    />
+
+                    <TouchableOpacity 
+                      style={[styles.submitBtn, submitting && styles.submitBtnDisabled, { marginTop: 20 }]} 
+                      onPress={medication?.isNew ? submitNewMedication : submitTransaction}
+                      disabled={submitting}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.submitBtnText}>{medication?.isNew ? 'Создать товар' : 'Подтвердить'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1149,4 +1446,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: 350 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  pickerTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  modalList: { padding: 8 },
+  modalItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  modalItemText: { fontSize: 15, fontWeight: '600', color: '#334155', textAlign: 'center' },
+  dropdownContainer: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 },
+  dropdownSubBtn: { flex: 1, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  dropdownSubBtnText: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  selectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 12
+  },
+  selectBtnText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0f172a' },
 });

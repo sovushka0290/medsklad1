@@ -293,6 +293,51 @@ export default memo(function ReportsPage() {
               Выгрузить 1С JSON
             </button>
           </div>
+
+          <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 flex flex-col justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-800 text-sm">Акт инвентаризации</h3>
+              <p className="text-xs text-slate-400 mt-1">Акт в формате PDF</p>
+            </div>
+            <a
+              href={`${api.defaults.baseURL || '/api'}/export/pdf?type=inventory-act`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full mt-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold text-center block transition-colors"
+            >
+              Скачать Акт инвентаризации (PDF)
+            </a>
+          </div>
+
+          <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 flex flex-col justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-800 text-sm">Отчет склада</h3>
+              <p className="text-xs text-slate-400 mt-1">Сводный отчет в формате Excel</p>
+            </div>
+            <a
+              href={`${api.defaults.baseURL || '/api'}/export/excel?type=inventory`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full mt-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-xs font-bold text-center block transition-colors"
+            >
+              Сводный отчет склада (Excel)
+            </a>
+          </div>
+
+          <div className="border border-slate-100 rounded-xl p-4 bg-slate-50 flex flex-col justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-800 text-sm">Выгрузка 1С</h3>
+              <p className="text-xs text-slate-400 mt-1">Журнал операций в формате JSON</p>
+            </div>
+            <a
+              href={`${api.defaults.baseURL || '/api'}/export/1c`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full mt-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold text-center block transition-colors"
+            >
+              Выгрузка для 1С (JSON)
+            </a>
+          </div>
         </div>
       </div>
 

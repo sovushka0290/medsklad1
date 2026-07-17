@@ -776,38 +776,87 @@ export default memo(function ProceduresPage() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
                       <th className="py-4 px-6">Дата</th>
-                      <th className="py-4 px-6">Сотрудник</th>
                       <th className="py-4 px-6">Кабинет</th>
+                      <th className="py-4 px-6">Медсестра</th>
                       <th className="py-4 px-6">Процедура</th>
-                      <th className="py-4 px-6">Кол-во манипуляций</th>
-                      <th className="py-4 px-6">Примечание</th>
+                      <th className="py-4 px-6">Использовано по факту</th>
+                      <th className="py-4 px-6">Норма по ГОСТ</th>
+                      <th className="py-4 px-6">Отклонение (%)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
-                    {journalLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-4 px-6 font-medium text-slate-500 whitespace-nowrap">
-                          {new Date(log.createdAt).toLocaleString('ru-RU')}
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="font-bold text-slate-800">{log.user.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono uppercase">{log.user.role}</div>
-                        </td>
-                        <td className="py-4 px-6 font-semibold text-slate-600">{log.location.name}</td>
-                        <td className="py-4 px-6">
-                          <div className="font-bold text-slate-800">{log.procedure.name}</div>
-                          {log.procedure.standard && (
-                            <span className="inline-block mt-0.5 bg-cyan-50 text-cyan-700 px-1 py-0.5 rounded text-[9px] font-mono font-semibold">
-                              {log.procedure.standard}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-4 px-6 font-extrabold text-cyan-600 text-center">{log.quantity}</td>
-                        <td className="py-4 px-6 italic text-slate-400 max-w-[200px] truncate" title={log.note || ''}>
-                          {log.note || '-'}
-                        </td>
-                      </tr>
-                    ))}
+                    {journalLogs.map(log => {
+                      const norms = log.procedure?.norms || [];
+                      const rowCount = norms.length || 1;
+
+                      return norms.length === 0 ? (
+                        <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-4 px-6 font-medium text-slate-500 whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleString('ru-RU')}
+                          </td>
+                          <td className="py-4 px-6 font-semibold text-slate-600">
+                            {log.location.name}
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-slate-800">{log.user.name}</div>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="font-bold text-slate-800">{log.procedure.name}</div>
+                            {log.procedure.standard && (
+                              <span className="inline-block mt-0.5 bg-cyan-50 text-cyan-700 px-1 py-0.5 rounded text-[9px] font-mono font-semibold">
+                                {log.procedure.standard}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-slate-400" colSpan={3}>
+                            Нет расходных материалов в шаблоне
+                          </td>
+                        </tr>
+                      ) : (
+                        norms.map((norm, nIdx) => {
+                          const qtyFact = norm.expectedQuantity * log.quantity;
+                          const qtyNorm = norm.expectedQuantity * log.quantity;
+                          const deviation = 0;
+
+                          return (
+                            <tr key={`${log.id}-${norm.id}`} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
+                              {nIdx === 0 && (
+                                <>
+                                  <td rowSpan={rowCount} className="py-4 px-6 font-medium text-slate-500 whitespace-nowrap align-top">
+                                    {new Date(log.createdAt).toLocaleString('ru-RU')}
+                                  </td>
+                                  <td rowSpan={rowCount} className="py-4 px-6 font-semibold text-slate-600 align-top">
+                                    {log.location.name}
+                                  </td>
+                                  <td rowSpan={rowCount} className="py-4 px-6 align-top">
+                                    <div className="font-bold text-slate-800">{log.user.name}</div>
+                                  </td>
+                                  <td rowSpan={rowCount} className="py-4 px-6 align-top">
+                                    <div className="font-bold text-slate-800">{log.procedure.name}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">({log.quantity} манипуляций)</div>
+                                    {log.procedure.standard && (
+                                      <span className="inline-block mt-0.5 bg-cyan-50 text-cyan-700 px-1 py-0.5 rounded text-[9px] font-mono font-semibold">
+                                        {log.procedure.standard}
+                                      </span>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              <td className="py-4 px-6">
+                                <div className="font-bold text-slate-800">{norm.medication?.name}</div>
+                                <div className="text-xs text-slate-500">{qtyFact} шт.</div>
+                              </td>
+                              <td className="py-4 px-6 font-semibold text-slate-600">
+                                {qtyNorm} {norm.medication?.unit || 'шт.'}
+                              </td>
+                              <td className="py-4 px-6 font-bold text-emerald-600">
+                                {deviation >= 0 ? `+${deviation}` : deviation}%
+                              </td>
+                            </tr>
+                          );
+                        })
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
